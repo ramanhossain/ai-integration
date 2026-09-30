@@ -1,0 +1,107 @@
+{
+  "$id": "https://aip.local/schemas/integration.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Integration",
+  "description": "Declaratieve Integration-as-Code definitie. Bron van waarheid; wordt versioneerd in Git en gedeployed naar de eigen workflow-engine (DEV → TEST → ACC → PROD).",
+  "type": "object",
+  "required": ["integration", "trigger", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "integration": {
+      "type": "string",
+      "description": "Unieke, stabiele naam van de integratie.",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{2,63}$"
+    },
+    "version": { "type": "string", "default": "1" },
+    "description": { "type": "string" },
+    "owner": { "type": "string", "description": "Eigenaar / tenant." },
+    "trigger": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["manual", "webhook", "api", "schedule", "queue", "file", "ftp", "event"] },
+        "source": { "type": "string" },
+        "cron": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["validate", "transform", "duplicate-check", "enrich", "csv", "xml", "call", "code", "delay", "subprocess", "file", "ftp", "queue-publish", "queue-get", "datatable", "sql", "email", "notify", "mcp-tool", "connector", "branch", "custom", "end"]
+          },
+          "name": { "type": "string", "description": "Weergavenaam op het canvas." },
+          "config": { "type": "object", "additionalProperties": true },
+          "position": {
+            "type": "object",
+            "description": "Positie op het procescanvas (BPMN-diagram).",
+            "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+            "required": ["x", "y"]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "connections": {
+      "type": "array",
+      "description": "Sequence flows van het BPMN-model. 'from' is 'start' of een stap-id. Zonder connections worden de stappen lineair doorlopen.",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "port": { "type": "string", "description": "Uitgang van de bron: 'out' (default) of 'true'/'false' bij een beslissing." }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layout": {
+      "type": "object",
+      "description": "Canvas-layout, o.a. de positie van het startevent.",
+      "properties": {
+        "start": { "type": "object", "properties": { "x": { "type": "number" }, "y": { "type": "number" } } }
+      },
+      "additionalProperties": true
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "attempts": { "type": "integer", "minimum": 0, "maximum": 10, "default": 3 },
+        "backoff": { "type": "string", "enum": ["none", "fixed", "exponential"], "default": "exponential" },
+        "onExhaust": { "type": "string", "enum": ["fail", "dead-letter-queue"], "default": "dead-letter-queue" }
+      },
+      "additionalProperties": false
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean", "default": true } },
+      "additionalProperties": false
+    },
+    "agents": {
+      "type": "object",
+      "description": "Welke agents deze integratie mee beheren.",
+      "properties": {
+        "monitoring": { "type": "boolean", "default": false },
+        "testing": { "type": "boolean", "default": false },
+        "security": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "description": "Welke acties menselijke goedkeuring vereisen.",
+      "properties": {
+        "productionDeployment": { "type": "string", "enum": ["auto", "required"], "default": "required" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

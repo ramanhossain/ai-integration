@@ -1,0 +1,24 @@
+# Optionele Postgres voor persistentie. Het platform heeft een eigen engine en
+# draait ook zonder database (in-memory).
+#   docker compose up -d
+#   DATABASE_URL=postgres://aip:aip@localhost:5432/aip npm run dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aip
+      POSTGRES_PASSWORD: aip
+      POSTGRES_DB: aip
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aip"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

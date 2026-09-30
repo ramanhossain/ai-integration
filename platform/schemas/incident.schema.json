@@ -1,0 +1,30 @@
+{
+  "$id": "https://aip.local/schemas/incident.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Incident",
+  "description": "Gestructureerd incident zoals de Monitoring Agent het rapporteert. Zowel voor mensen (GUI) als machines (API/agents).",
+  "type": "object",
+  "required": ["schema", "integration", "severity", "problem"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "string", "const": "incident/v1" },
+    "id": { "type": "string" },
+    "integration": { "type": "string" },
+    "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+    "problem": { "type": "string" },
+    "failedRequests": { "type": "integer", "minimum": 0 },
+    "rootCause": {
+      "type": "object",
+      "properties": {
+        "endpoint": { "type": "string" },
+        "symptom": { "type": "string" },
+        "fromMs": { "type": "number" },
+        "toMs": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "impact": { "type": "string" },
+    "proposedAction": { "$ref": "https://aip.local/schemas/action.json" },
+    "detectedAt": { "type": "string", "format": "date-time" }
+  }
+}

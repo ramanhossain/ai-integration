@@ -1,0 +1,17 @@
+{
+  "integration": "SalesforceToExact",
+  "version": "1",
+  "description": "Nieuwe Salesforce-customer naar Exact, met duplicaatcheck op KvK-nummer.",
+  "owner": "team-integratie",
+  "trigger": { "type": "webhook", "source": "salesforce" },
+  "steps": [
+    { "id": "validate", "type": "validate" },
+    { "id": "transform", "type": "transform" },
+    { "id": "dedupe", "type": "duplicate-check", "config": { "key": "kvkNumber" } },
+    { "id": "call-exact", "type": "call", "config": { "target": "exact", "endpoint": "/customers" } }
+  ],
+  "retry": { "attempts": 3, "backoff": "exponential", "onExhaust": "dead-letter-queue" },
+  "monitoring": { "enabled": true },
+  "agents": { "monitoring": true, "testing": true, "security": true },
+  "approval": { "productionDeployment": "required" }
+}
