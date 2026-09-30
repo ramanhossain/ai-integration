@@ -1,0 +1,39 @@
+{
+  "$id": "https://aip.local/schemas/action.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Action",
+  "description": "Een actie die een agent (of mens) wil uitvoeren. Gaat altijd door de policy engine; het risiconiveau bepaalt of goedkeuring nodig is.",
+  "type": "object",
+  "required": ["type", "proposedBy"],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "Puntgescheiden actietype, bv. read.logs, mapping.update, deploy.production, security.active_test.",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+    },
+    "target": {
+      "type": "object",
+      "description": "Waarop de actie inwerkt (integratie, systeem, resource).",
+      "properties": {
+        "integration": { "type": "string" },
+        "environment": { "type": "string", "enum": ["dev", "test", "acc", "prod"] },
+        "resource": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "proposedBy": {
+      "type": "string",
+      "description": "Identiteit van de agent of gebruiker die de actie voorstelt."
+    },
+    "reason": { "type": "string", "description": "Waarom de agent deze actie voorstelt." },
+    "diff": { "type": "string", "description": "Menselijk leesbare of unified diff van de wijziging." },
+    "impact": { "type": "string" },
+    "reversible": { "type": "boolean", "default": false },
+    "payload": {
+      "type": "object",
+      "description": "Machine-leesbare parameters om de actie deterministisch uit te voeren.",
+      "additionalProperties": true
+    }
+  }
+}

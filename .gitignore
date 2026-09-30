@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.env
+.env.local
+*.log
+.DS_Store
+connection.md
+.claude/settings.local.json
+
+# lokale runtime-data (bestandsopslag, bestanden per omgeving, agent-id's)
+platform/data/
+
+# intern plandocument (bevat persoonsgegevens)
+agentic-integration-platform.html

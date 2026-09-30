@@ -1,0 +1,312 @@
+import type { PluginDef } from "../types";
+import { P, bool, json, num, path, q, urlField } from "./_shared";
+
+// Batch 4 en 5: formulieren, planning, ontwikkeling, beveiliging, infra en service management.
+
+export const OPS: PluginDef[] = [
+  // ---------------------------------------------------------------- formulieren en planning
+  { id: "acuity-scheduling", name: "Acuity Scheduling", category: "Productiviteit", description: "Afspraken, beschikbaarheid en agenda's", color: "#315b7d", website: "https://acuityscheduling.com", docs: "https://developers.acuityscheduling.com/reference",
+    baseUrl: "https://acuityscheduling.com/api/v1", auth: { type: "basic", userLabel: "User ID", passLabel: "API-key", help: "Acuity → Integrations → API → User ID en API-key." }, test: "me",
+    operations: [
+      { id: "appointment.list", resource: "Afspraak", label: "Afspraken", method: "GET", path: "/appointments", params: [q("minDate", "Vanaf (JJJJ-MM-DD)"), q("maxDate", "Tot"), q("calendarID", "Agenda-ID"), q("appointmentTypeID", "Type-ID"), q("email", "E-mail klant"), q("max", "Aantal", { default: "100" })] },
+      { id: "appointment.get", resource: "Afspraak", label: "Afspraak ophalen", method: "GET", path: "/appointments/{{id}}", params: [path("id", "Afspraak-ID")] },
+      { id: "appointment.create", resource: "Afspraak", label: "Afspraak maken", method: "POST", path: "/appointments", params: [P("datetime", "Tijdstip (ISO)", { required: true }), num("appointmentTypeID", "Type-ID", { required: true }), P("firstName", "Voornaam", { required: true }), P("lastName", "Achternaam", { required: true }), P("email", "E-mail", { required: true }), P("phone", "Telefoon"), num("calendarID", "Agenda-ID"), P("notes", "Notities")] },
+      { id: "appointment.reschedule", resource: "Afspraak", label: "Verzetten", method: "PUT", path: "/appointments/{{id}}/reschedule", params: [path("id", "Afspraak-ID"), P("datetime", "Nieuw tijdstip (ISO)", { required: true })] },
+      { id: "appointment.cancel", resource: "Afspraak", label: "Annuleren", method: "PUT", path: "/appointments/{{id}}/cancel", params: [path("id", "Afspraak-ID"), P("cancelNote", "Reden")] },
+      { id: "availability.dates", resource: "Beschikbaarheid", label: "Beschikbare dagen", method: "GET", path: "/availability/dates", params: [q("month", "Maand (JJJJ-MM)", { required: true }), q("appointmentTypeID", "Type-ID", { required: true }), q("calendarID", "Agenda-ID"), q("timezone", "Tijdzone", { default: "Europe/Amsterdam" })] },
+      { id: "availability.times", resource: "Beschikbaarheid", label: "Beschikbare tijden", method: "GET", path: "/availability/times", params: [q("date", "Datum (JJJJ-MM-DD)", { required: true }), q("appointmentTypeID", "Type-ID", { required: true }), q("calendarID", "Agenda-ID")] },
+      { id: "types", resource: "Instellingen", label: "Afspraaktypes", method: "GET", path: "/appointment-types" },
+      { id: "calendars", resource: "Instellingen", label: "Agenda's", method: "GET", path: "/calendars" },
+      { id: "me", resource: "Account", label: "Mijn account", method: "GET", path: "/me" }
+    ] },
+  { id: "cal-com", name: "Cal.com", category: "Productiviteit", description: "Boekingen, eventtypes en beschikbare tijden (API v2)", color: "#111827", website: "https://cal.com", docs: "https://cal.com/docs/api-reference/v2/introduction",
+    baseUrl: "https://api.cal.com/v2", auth: { type: "bearer", label: "API-key (cal_live_…)", help: "Cal.com → Settings → Developer → API keys." }, test: "me",
+    operations: [
+      { id: "booking.list", resource: "Boeking", label: "Boekingen", method: "GET", path: "/bookings", output: "data", headers: { "cal-api-version": "2024-08-13" }, params: [q("status", "Status", { options: ["upcoming", "recurring", "past", "cancelled", "unconfirmed"], default: "upcoming" }), q("attendeeEmail", "E-mail deelnemer"), q("take", "Aantal", { default: "50" })] },
+      { id: "booking.get", resource: "Boeking", label: "Boeking ophalen", method: "GET", path: "/bookings/{{uid}}", output: "data", headers: { "cal-api-version": "2024-08-13" }, params: [path("uid", "Boeking-UID")] },
+      { id: "booking.create", resource: "Boeking", label: "Boeking maken", method: "POST", path: "/bookings", output: "data", headers: { "cal-api-version": "2024-08-13" },
+        body: { start: "{{start}}", eventTypeId: "{{eventTypeId}}", attendee: { name: "{{name}}", email: "{{email}}", timeZone: "{{timeZone}}", language: "{{language}}" }, metadata: "{{metadata}}" },
+        params: [P("start", "Start (ISO, UTC)", { required: true }), num("eventTypeId", "Eventtype-ID", { required: true }), P("name", "Naam", { required: true }), P("email", "E-mail", { required: true }), P("timeZone", "Tijdzone", { default: "Europe/Amsterdam" }), P("language", "Taal", { default: "nl" }), json("metadata", "Metadata")] },
+      { id: "booking.cancel", resource: "Boeking", label: "Boeking annuleren", method: "POST", path: "/bookings/{{uid}}/cancel", output: "data", headers: { "cal-api-version": "2024-08-13" }, params: [path("uid", "Boeking-UID"), P("cancellationReason", "Reden")] },
+      { id: "booking.reschedule", resource: "Boeking", label: "Boeking verzetten", method: "POST", path: "/bookings/{{uid}}/reschedule", output: "data", headers: { "cal-api-version": "2024-08-13" }, params: [path("uid", "Boeking-UID"), P("start", "Nieuwe start (ISO, UTC)", { required: true }), P("reschedulingReason", "Reden")] },
+      { id: "eventType.list", resource: "Eventtype", label: "Eventtypes", method: "GET", path: "/event-types", output: "data", headers: { "cal-api-version": "2024-06-14" } },
+      { id: "slots", resource: "Beschikbaarheid", label: "Beschikbare tijden", method: "GET", path: "/slots", output: "data", headers: { "cal-api-version": "2024-09-04" }, params: [q("eventTypeId", "Eventtype-ID", { required: true }), q("start", "Vanaf (JJJJ-MM-DD)", { required: true }), q("end", "Tot (JJJJ-MM-DD)", { required: true }), q("timeZone", "Tijdzone", { default: "Europe/Amsterdam" })] },
+      { id: "me", resource: "Account", label: "Mijn account", method: "GET", path: "/me", output: "data" }
+    ] },
+  { id: "form-io", name: "Form.io", category: "Formulieren & enquêtes", description: "Formulieren en inzendingen", color: "#2c3e50", website: "https://form.io", docs: "https://apidocs.form.io/",
+    baseUrl: "{{url}}", fields: [urlField("Project-URL", "https://mijnproject.form.io")], auth: { type: "apiKey", in: "header", name: "x-token", label: "API-key van het project" }, test: "form.list",
+    operations: [
+      { id: "form.list", resource: "Formulier", label: "Formulieren", method: "GET", path: "/form", params: [q("limit", "Aantal", { default: "25" }), q("type", "Type", { options: ["form", "resource"] })] },
+      { id: "submission.list", resource: "Inzending", label: "Inzendingen", method: "GET", path: "/{{form}}/submission", params: [path("form", "Formulierpad"), q("limit", "Aantal", { default: "25" }), q("sort", "Sortering", { default: "-created" }), q("created__gt", "Na (ISO)")] },
+      { id: "submission.get", resource: "Inzending", label: "Inzending ophalen", method: "GET", path: "/{{form}}/submission/{{id}}", params: [path("form", "Formulierpad"), path("id", "Inzending-ID")] },
+      { id: "submission.create", resource: "Inzending", label: "Inzending maken", method: "POST", path: "/{{form}}/submission", body: { data: "{{data}}" }, params: [path("form", "Formulierpad"), json("data", "Gegevens", { required: true })] },
+      { id: "submission.update", resource: "Inzending", label: "Inzending bijwerken", method: "PUT", path: "/{{form}}/submission/{{id}}", body: { data: "{{data}}" }, params: [path("form", "Formulierpad"), path("id", "Inzending-ID"), json("data", "Gegevens", { required: true })] },
+      { id: "submission.delete", resource: "Inzending", label: "Inzending verwijderen", method: "DELETE", path: "/{{form}}/submission/{{id}}", params: [path("form", "Formulierpad"), path("id", "Inzending-ID")] }
+    ] },
+  { id: "formstack", name: "Formstack", category: "Formulieren & enquêtes", description: "Formulieren en inzendingen", color: "#21b573", website: "https://formstack.com", docs: "https://developers.formstack.com/reference",
+    baseUrl: "https://www.formstack.com/api/v2", auth: { type: "bearer", label: "Access token", help: "Formstack → API → applicatie → access token." }, test: "form.list",
+    operations: [
+      { id: "form.list", resource: "Formulier", label: "Formulieren", method: "GET", path: "/form.json", output: "forms", params: [q("per_page", "Aantal", { default: "50" })] },
+      { id: "form.get", resource: "Formulier", label: "Formulier (met velden)", method: "GET", path: "/form/{{id}}.json", params: [path("id", "Formulier-ID")] },
+      { id: "submission.list", resource: "Inzending", label: "Inzendingen", method: "GET", path: "/form/{{id}}/submission.json", output: "submissions", params: [path("id", "Formulier-ID"), q("min_time", "Vanaf (JJJJ-MM-DD HH:MM:SS)"), q("per_page", "Aantal", { default: "50" }), q("data", "Met veldwaarden", { default: "true" }), q("expand_data", "Met veldnamen", { default: "true" })] },
+      { id: "submission.get", resource: "Inzending", label: "Inzending ophalen", method: "GET", path: "/submission/{{id}}.json", params: [path("id", "Inzending-ID")] },
+      { id: "submission.create", resource: "Inzending", label: "Inzending maken", method: "POST", path: "/form/{{id}}/submission.json", bodyParam: "fields", params: [path("id", "Formulier-ID"), json("fields", "Velden", { required: true, placeholder: '{"field_12345":"Jan"}' })] },
+      { id: "submission.delete", resource: "Inzending", label: "Inzending verwijderen", method: "DELETE", path: "/submission/{{id}}.json", params: [path("id", "Inzending-ID")] }
+    ] },
+  { id: "wufoo", name: "Wufoo", category: "Formulieren & enquêtes", description: "Formulieren, velden en inzendingen", color: "#d05b33", website: "https://wufoo.com", docs: "https://wufoo.github.io/docs/",
+    baseUrl: "https://{{subdomain}}.wufoo.com/api/v3", fields: [{ key: "subdomain", label: "Subdomein", placeholder: "bedrijf (van bedrijf.wufoo.com)" }],
+    auth: { type: "basic", userLabel: "API-key", passLabel: "Wachtwoord (willekeurig, bv. footastic)", help: "Wufoo → Forms → More → API Information." }, test: "form.list",
+    operations: [
+      { id: "form.list", resource: "Formulier", label: "Formulieren", method: "GET", path: "/forms.json", output: "Forms" },
+      { id: "form.fields", resource: "Formulier", label: "Velden", method: "GET", path: "/forms/{{form}}/fields.json", output: "Fields", params: [path("form", "Formulier (hash of naam)")] },
+      { id: "entry.list", resource: "Inzending", label: "Inzendingen", method: "GET", path: "/forms/{{form}}/entries.json", output: "Entries", params: [path("form", "Formulier (hash)"), q("pageSize", "Aantal", { default: "25" }), q("sort", "Sorteren op", { default: "EntryId" }), q("sortDirection", "Richting", { default: "DESC" })] },
+      { id: "entry.create", resource: "Inzending", label: "Inzending maken", method: "POST", path: "/forms/{{form}}/entries.json", bodyType: "form", bodyParam: "fields", params: [path("form", "Formulier (hash)"), json("fields", "Velden", { required: true, placeholder: '{"Field1":"Jan","Field2":"Jansen"}' })] },
+      { id: "report.list", resource: "Rapport", label: "Rapporten", method: "GET", path: "/reports.json", output: "Reports" }
+    ] },
+  { id: "kobotoolbox", name: "KoboToolbox", category: "Formulieren & enquêtes", description: "Formulieren (assets) en inzendingen", color: "#2095f3", website: "https://kobotoolbox.org", docs: "https://support.kobotoolbox.org/api.html",
+    baseUrl: "{{url}}/api/v2", fields: [{ key: "url", label: "Server", default: "https://kf.kobotoolbox.org", placeholder: "https://eu.kobotoolbox.org" }],
+    auth: { type: "apiKey", in: "header", name: "Authorization", prefix: "Token ", label: "API-token", help: "KoboToolbox → Account settings → Security → API key." }, test: "asset.list",
+    operations: [
+      { id: "asset.list", resource: "Formulier", label: "Formulieren", method: "GET", path: "/assets/?format=json", output: "results", params: [q("q", "Filter", { default: "asset_type:survey" }), q("limit", "Aantal", { default: "50" })] },
+      { id: "asset.get", resource: "Formulier", label: "Formulier ophalen", method: "GET", path: "/assets/{{uid}}/?format=json", params: [path("uid", "Formulier-UID")] },
+      { id: "data.list", resource: "Inzending", label: "Inzendingen", method: "GET", path: "/assets/{{uid}}/data/?format=json", output: "results", params: [path("uid", "Formulier-UID"), q("query", "Filter (JSON)", { placeholder: '{"_submission_time":{"$gt":"2026-09-01"}}' }), q("limit", "Aantal", { default: "100" }), q("sort", "Sortering", { placeholder: '{"_id":-1}' })] },
+      { id: "data.get", resource: "Inzending", label: "Inzending ophalen", method: "GET", path: "/assets/{{uid}}/data/{{id}}/?format=json", params: [path("uid", "Formulier-UID"), path("id", "Inzending-ID")] },
+      { id: "data.validate", resource: "Inzending", label: "Validatiestatus zetten", method: "PATCH", path: "/assets/{{uid}}/data/{{id}}/validation_status/", body: { "validation_status.uid": "{{status}}" },
+        params: [path("uid", "Formulier-UID"), path("id", "Inzending-ID"), P("status", "Status", { options: ["validation_status_approved", "validation_status_not_approved", "validation_status_on_hold"], required: true })] },
+      { id: "data.delete", resource: "Inzending", label: "Inzending verwijderen", method: "DELETE", path: "/assets/{{uid}}/data/{{id}}/", params: [path("uid", "Formulier-UID"), path("id", "Inzending-ID")] },
+      { id: "hook.list", resource: "Webhook", label: "REST-services (webhooks)", method: "GET", path: "/assets/{{uid}}/hooks/?format=json", output: "results", params: [path("uid", "Formulier-UID")] }
+    ] },
+
+  // ---------------------------------------------------------------- ontwerp, projecten en ontwikkeling
+  { id: "figma", name: "Figma", category: "Productiviteit", description: "Bestanden, afbeeldingen, reacties en projecten", color: "#a259ff", website: "https://figma.com", docs: "https://www.figma.com/developers/api",
+    baseUrl: "https://api.figma.com/v1", auth: { type: "apiKey", in: "header", name: "X-Figma-Token", label: "Personal access token", help: "Figma → Settings → Security → Personal access tokens." }, test: "me",
+    operations: [
+      { id: "file.get", resource: "Bestand", label: "Bestand ophalen", method: "GET", path: "/files/{{key}}", params: [path("key", "Bestandssleutel"), q("depth", "Diepte", { default: "1" }), q("ids", "Alleen nodes")] },
+      { id: "file.nodes", resource: "Bestand", label: "Nodes ophalen", method: "GET", path: "/files/{{key}}/nodes", output: "nodes", params: [path("key", "Bestandssleutel"), q("ids", "Node-ID's", { required: true })] },
+      { id: "file.images", resource: "Bestand", label: "Afbeeldingen renderen", method: "GET", path: "/images/{{key}}", output: "images", params: [path("key", "Bestandssleutel"), q("ids", "Node-ID's", { required: true }), q("format", "Formaat", { options: ["png", "jpg", "svg", "pdf"], default: "png" }), q("scale", "Schaal", { default: "2" })] },
+      { id: "file.versions", resource: "Bestand", label: "Versies", method: "GET", path: "/files/{{key}}/versions", output: "versions", params: [path("key", "Bestandssleutel")] },
+      { id: "comment.list", resource: "Reactie", label: "Reacties", method: "GET", path: "/files/{{key}}/comments", output: "comments", params: [path("key", "Bestandssleutel")] },
+      { id: "comment.create", resource: "Reactie", label: "Reactie plaatsen", method: "POST", path: "/files/{{key}}/comments", params: [path("key", "Bestandssleutel"), P("message", "Tekst", { required: true }), P("comment_id", "Antwoord op")] },
+      { id: "project.list", resource: "Project", label: "Projecten van een team", method: "GET", path: "/teams/{{teamId}}/projects", output: "projects", params: [path("teamId", "Team-ID")] },
+      { id: "project.files", resource: "Project", label: "Bestanden in project", method: "GET", path: "/projects/{{projectId}}/files", output: "files", params: [path("projectId", "Project-ID")] },
+      { id: "me", resource: "Account", label: "Mijn account", method: "GET", path: "/me" }
+    ] },
+  { id: "wekan", name: "Wekan", category: "Projectbeheer", description: "Borden, lijsten, swimlanes en kaarten (eigen Wekan)", color: "#00897b", website: "https://wekan.github.io", docs: "https://wekan.github.io/api/",
+    baseUrl: "{{url}}/api", auth: { type: "custom", signer: "wekan", fields: [urlField("Adres", "https://wekan.bedrijf.nl"), { key: "user", label: "Gebruiker" }, { key: "password", label: "Wachtwoord", secret: true }], help: "Het platform logt in met gebruikersnaam/wachtwoord en bewaart het sessietoken tijdelijk." }, test: "boards",
+    operations: [
+      { id: "boards", resource: "Bord", label: "Mijn borden", method: "GET", path: "/users/ME/boards" },
+      { id: "board.get", resource: "Bord", label: "Bord ophalen", method: "GET", path: "/boards/{{boardId}}", params: [path("boardId", "Bord-ID")] },
+      { id: "board.create", resource: "Bord", label: "Bord maken", method: "POST", path: "/boards", params: [P("title", "Titel", { required: true }), P("owner", "Eigenaar (gebruikers-ID)", { required: true }), P("permission", "Zichtbaarheid", { options: ["private", "public"], default: "private" }), P("color", "Kleur", { default: "belize" })] },
+      { id: "list.list", resource: "Lijst", label: "Lijsten", method: "GET", path: "/boards/{{boardId}}/lists", params: [path("boardId", "Bord-ID")] },
+      { id: "list.create", resource: "Lijst", label: "Lijst maken", method: "POST", path: "/boards/{{boardId}}/lists", params: [path("boardId", "Bord-ID"), P("title", "Titel", { required: true })] },
+      { id: "swimlane.list", resource: "Swimlane", label: "Swimlanes", method: "GET", path: "/boards/{{boardId}}/swimlanes", params: [path("boardId", "Bord-ID")] },
+      { id: "card.list", resource: "Kaart", label: "Kaarten in lijst", method: "GET", path: "/boards/{{boardId}}/lists/{{listId}}/cards", params: [path("boardId", "Bord-ID"), path("listId", "Lijst-ID")] },
+      { id: "card.get", resource: "Kaart", label: "Kaart ophalen", method: "GET", path: "/boards/{{boardId}}/lists/{{listId}}/cards/{{cardId}}", params: [path("boardId", "Bord-ID"), path("listId", "Lijst-ID"), path("cardId", "Kaart-ID")] },
+      { id: "card.create", resource: "Kaart", label: "Kaart maken", method: "POST", path: "/boards/{{boardId}}/lists/{{listId}}/cards", params: [path("boardId", "Bord-ID"), path("listId", "Lijst-ID"), P("title", "Titel", { required: true }), P("description", "Omschrijving", { type: "text" }), P("authorId", "Auteur (gebruikers-ID)", { required: true }), P("swimlaneId", "Swimlane-ID", { required: true })] },
+      { id: "card.update", resource: "Kaart", label: "Kaart bijwerken/verplaatsen", method: "PUT", path: "/boards/{{boardId}}/lists/{{listId}}/cards/{{cardId}}", params: [path("boardId", "Bord-ID"), path("listId", "Lijst-ID"), path("cardId", "Kaart-ID"), P("title", "Titel"), P("description", "Omschrijving"), P("listId", "Naar lijst"), P("dueAt", "Deadline (ISO)"), P("color", "Kleur")] },
+      { id: "card.delete", resource: "Kaart", label: "Kaart verwijderen", method: "DELETE", path: "/boards/{{boardId}}/lists/{{listId}}/cards/{{cardId}}", params: [path("boardId", "Bord-ID"), path("listId", "Lijst-ID"), path("cardId", "Kaart-ID")] }
+    ] },
+  { id: "currents", name: "Currents", category: "Ontwikkeling", description: "Testresultaten van Playwright/Cypress: projecten, runs en specs", color: "#10b981", website: "https://currents.dev", docs: "https://docs.currents.dev/api/readme",
+    baseUrl: "https://api.currents.dev/v1", auth: { type: "bearer", label: "API-key", help: "Currents → Organization settings → API keys." }, test: "project.list",
+    operations: [
+      { id: "project.list", resource: "Project", label: "Projecten", method: "GET", path: "/projects", output: "data" },
+      { id: "project.get", resource: "Project", label: "Project ophalen", method: "GET", path: "/projects/{{projectId}}", output: "data", params: [path("projectId", "Project-ID")] },
+      { id: "run.list", resource: "Run", label: "Runs van een project", method: "GET", path: "/projects/{{projectId}}/runs", output: "data", params: [path("projectId", "Project-ID"), q("limit", "Aantal", { default: "10" }), q("branch", "Branch"), q("tag", "Tag")] },
+      { id: "run.find", resource: "Run", label: "Run zoeken", method: "GET", path: "/runs/find", output: "data", params: [q("projectId", "Project-ID", { required: true }), q("ciBuildId", "CI-build-ID"), q("branch", "Branch")] },
+      { id: "run.get", resource: "Run", label: "Run ophalen", method: "GET", path: "/runs/{{runId}}", output: "data", params: [path("runId", "Run-ID")] },
+      { id: "run.cancel", resource: "Run", label: "Run annuleren", method: "PUT", path: "/runs/{{runId}}/cancel", params: [path("runId", "Run-ID")] },
+      { id: "run.reset", resource: "Run", label: "Specs opnieuw uitvoeren", method: "PUT", path: "/runs/{{runId}}/reset", params: [path("runId", "Run-ID"), json("machineId", "Machine-ID's", { required: true, placeholder: '["machine-1"]' })] },
+      { id: "run.delete", resource: "Run", label: "Run verwijderen", method: "DELETE", path: "/runs/{{runId}}", params: [path("runId", "Run-ID")] },
+      { id: "instance.get", resource: "Instance", label: "Spec-uitvoering ophalen", method: "GET", path: "/instances/{{instanceId}}", output: "data", params: [path("instanceId", "Instance-ID")] },
+      { id: "specs", resource: "Spec", label: "Spec-statistieken", method: "GET", path: "/spec-files/{{projectId}}", output: "data", params: [path("projectId", "Project-ID"), q("date_start", "Vanaf (ISO)", { required: true }), q("date_end", "Tot (ISO)", { required: true })] }
+    ] },
+  { id: "travis-ci", name: "Travis CI", category: "Ontwikkeling", description: "Builds starten, bekijken, herstarten en annuleren", color: "#3eaaaf", website: "https://travis-ci.com", docs: "https://developer.travis-ci.com/",
+    baseUrl: "https://api.travis-ci.com", auth: { type: "apiKey", in: "header", name: "Authorization", prefix: "token ", label: "API-token", help: "travis-ci.com → Settings → API authentication." }, headers: { "Travis-API-Version": "3" }, test: "user",
+    operations: [
+      { id: "repo.builds", resource: "Build", label: "Builds van repository", method: "GET", path: "/repo/{{slug}}/builds", output: "builds", params: [path("slug", "Repository (eigenaar/naam)"), q("limit", "Aantal", { default: "10" }), q("branch.name", "Branch"), q("state", "Status")] },
+      { id: "repo.trigger", resource: "Build", label: "Build starten", method: "POST", path: "/repo/{{slug}}/requests", body: { request: { branch: "{{branch}}", message: "{{message}}", config: "{{config}}" } }, params: [path("slug", "Repository (eigenaar/naam)"), P("branch", "Branch", { default: "main" }), P("message", "Bericht"), json("config", "Extra configuratie")] },
+      { id: "build.get", resource: "Build", label: "Build ophalen", method: "GET", path: "/build/{{id}}", params: [path("id", "Build-ID")] },
+      { id: "build.restart", resource: "Build", label: "Build herstarten", method: "POST", path: "/build/{{id}}/restart", params: [path("id", "Build-ID")] },
+      { id: "build.cancel", resource: "Build", label: "Build annuleren", method: "POST", path: "/build/{{id}}/cancel", params: [path("id", "Build-ID")] },
+      { id: "job.log", resource: "Job", label: "Log van een job", method: "GET", path: "/job/{{id}}/log", output: "content", params: [path("id", "Job-ID")] },
+      { id: "repos", resource: "Repository", label: "Mijn repositories", method: "GET", path: "/repos", output: "repositories", params: [q("limit", "Aantal", { default: "25" })] },
+      { id: "user", resource: "Account", label: "Mijn account", method: "GET", path: "/user" }
+    ] },
+
+  // ---------------------------------------------------------------- beveiliging
+  { id: "bitwarden", name: "Bitwarden", category: "Beveiliging", description: "Collecties, groepen, leden en events (Public API voor organisaties)", color: "#175ddc", website: "https://bitwarden.com", docs: "https://bitwarden.com/help/public-api/",
+    baseUrl: "{{apiUrl}}/public", fields: [{ key: "apiUrl", label: "API-adres", default: "https://api.bitwarden.com", placeholder: "https://api.bitwarden.eu voor de EU-cloud" }, { key: "identityUrl", label: "Identity-adres", default: "https://identity.bitwarden.com", placeholder: "https://identity.bitwarden.eu" }],
+    auth: { type: "oauth2-client", tokenUrl: "{{identityUrl}}/connect/token", scopes: ["api.organization"], help: "Admin Console → Settings → Organization info → API key: client_id (organization.…) en client_secret." }, test: "collection.list",
+    operations: [
+      { id: "collection.list", resource: "Collectie", label: "Collecties", method: "GET", path: "/collections", output: "data" },
+      { id: "collection.get", resource: "Collectie", label: "Collectie ophalen", method: "GET", path: "/collections/{{id}}", params: [path("id", "Collectie-ID")] },
+      { id: "collection.update", resource: "Collectie", label: "Collectie bijwerken (groepen)", method: "PUT", path: "/collections/{{id}}", params: [path("id", "Collectie-ID"), P("externalId", "Extern ID"), json("groups", "Groepen", { placeholder: '[{"id":"…","readOnly":false}]' })] },
+      { id: "collection.delete", resource: "Collectie", label: "Collectie verwijderen", method: "DELETE", path: "/collections/{{id}}", params: [path("id", "Collectie-ID")] },
+      { id: "group.list", resource: "Groep", label: "Groepen", method: "GET", path: "/groups", output: "data" },
+      { id: "group.create", resource: "Groep", label: "Groep maken", method: "POST", path: "/groups", params: [P("name", "Naam", { required: true }), P("externalId", "Extern ID"), json("collections", "Collecties", { placeholder: '[{"id":"…","readOnly":true}]' })] },
+      { id: "group.members", resource: "Groep", label: "Leden van groep zetten", method: "PUT", path: "/groups/{{id}}/member-ids", params: [path("id", "Groep-ID"), P("memberIds", "Lid-ID's", { required: true, format: "list" })] },
+      { id: "member.list", resource: "Lid", label: "Leden", method: "GET", path: "/members", output: "data" },
+      { id: "member.get", resource: "Lid", label: "Lid ophalen", method: "GET", path: "/members/{{id}}", params: [path("id", "Lid-ID")] },
+      { id: "member.invite", resource: "Lid", label: "Lid uitnodigen", method: "POST", path: "/members", params: [P("email", "E-mail", { required: true }), num("type", "Rol", { default: 2, help: "0 = eigenaar, 1 = beheerder, 2 = gebruiker, 4 = custom" }), P("externalId", "Extern ID"), json("collections", "Collecties")] },
+      { id: "member.reinvite", resource: "Lid", label: "Uitnodiging opnieuw sturen", method: "POST", path: "/members/{{id}}/reinvite", params: [path("id", "Lid-ID")] },
+      { id: "member.delete", resource: "Lid", label: "Lid verwijderen", method: "DELETE", path: "/members/{{id}}", params: [path("id", "Lid-ID")] },
+      { id: "events", resource: "Event", label: "Audit-events", method: "GET", path: "/events", output: "data", params: [q("start", "Vanaf (ISO)"), q("end", "Tot (ISO)"), q("actingUserId", "Gebruiker"), q("continuationToken", "Vervolg")] }
+    ] },
+  { id: "cortex", name: "Cortex", category: "Beveiliging", description: "Observables analyseren en responders uitvoeren (StrangeBee Cortex)", color: "#e8a200", website: "https://strangebee.com/cortex/", docs: "https://github.com/TheHive-Project/CortexDocs/blob/master/api/api-guide.md",
+    baseUrl: "{{url}}/api", fields: [urlField("Adres", "https://cortex.bedrijf.nl:9001")], auth: { type: "bearer", label: "API-key", help: "Cortex → Organization → Users → API-key maken." }, test: "analyzer.list",
+    operations: [
+      { id: "analyzer.list", resource: "Analyzer", label: "Analyzers", method: "GET", path: "/analyzer", params: [q("range", "Bereik", { default: "all" })] },
+      { id: "analyzer.byType", resource: "Analyzer", label: "Analyzers per datatype", method: "GET", path: "/analyzer/type/{{dataType}}", params: [path("dataType", "Datatype", { placeholder: "ip, domain, hash, url" })] },
+      { id: "analyzer.run", resource: "Analyzer", label: "Analyse starten", method: "POST", path: "/analyzer/{{id}}/run", params: [path("id", "Analyzer-ID"), P("data", "Waarde", { required: true }), P("dataType", "Datatype", { required: true, default: "ip" }), num("tlp", "TLP", { default: 2 }), num("pap", "PAP", { default: 2 }), P("message", "Opmerking")] },
+      { id: "job.get", resource: "Job", label: "Job-status", method: "GET", path: "/job/{{id}}", params: [path("id", "Job-ID")] },
+      { id: "job.wait", resource: "Job", label: "Rapport (wachten tot klaar)", method: "GET", path: "/job/{{id}}/waitreport", params: [path("id", "Job-ID"), q("atMost", "Maximaal wachten", { default: "1minute" })] },
+      { id: "job.report", resource: "Job", label: "Rapport ophalen", method: "GET", path: "/job/{{id}}/report", params: [path("id", "Job-ID")] },
+      { id: "responder.list", resource: "Responder", label: "Responders", method: "GET", path: "/responder" },
+      { id: "responder.run", resource: "Responder", label: "Responder uitvoeren", method: "POST", path: "/responder/{{id}}/run", params: [path("id", "Responder-ID"), P("objectType", "Objecttype", { required: true, options: ["case", "case_task", "case_artifact", "alert", "case_task_log"] }), P("objectId", "Object-ID", { required: true }), json("data", "Object (TheHive)", { required: true }), num("tlp", "TLP", { default: 2 })] }
+    ] },
+  { id: "elastic-security", name: "Elastic Security", category: "Beveiliging", description: "Cases, reacties, connectors en detectiemeldingen (Kibana)", color: "#00bfb3", website: "https://elastic.co/security", docs: "https://www.elastic.co/docs/api/doc/kibana/",
+    baseUrl: "{{url}}/api", fields: [urlField("Kibana-adres", "https://bedrijf.kb.eu-west-1.aws.elastic-cloud.com")],
+    auth: { type: "headers", headers: { Authorization: "ApiKey {{apiKey}}", "kbn-xsrf": "true" }, fields: [{ key: "apiKey", label: "API-key (base64)", secret: true }], help: "Kibana → Stack Management → API keys → encoded key." }, test: "connector.list",
+    operations: [
+      { id: "case.create", resource: "Case", label: "Case maken", method: "POST", path: "/cases", body: { title: "{{title}}", description: "{{description}}", tags: "{{tags}}", severity: "{{severity}}", owner: "securitySolution", connector: { id: "none", name: "none", type: ".none", fields: null }, settings: { syncAlerts: true } },
+        params: [P("title", "Titel", { required: true }), P("description", "Omschrijving", { type: "text", required: true }), P("tags", "Tags", { format: "list" }), P("severity", "Ernst", { options: ["low", "medium", "high", "critical"], default: "low" })] },
+      { id: "case.find", resource: "Case", label: "Cases zoeken", method: "GET", path: "/cases/_find", output: "cases", params: [q("status", "Status", { options: ["open", "in-progress", "closed"] }), q("tags", "Tag"), q("search", "Zoekterm"), q("perPage", "Aantal", { default: "20" }), q("owner", "Eigenaar", { default: "securitySolution" })] },
+      { id: "case.get", resource: "Case", label: "Case ophalen", method: "GET", path: "/cases/{{id}}", params: [path("id", "Case-ID")] },
+      { id: "case.status", resource: "Case", label: "Status wijzigen", method: "PATCH", path: "/cases", body: { cases: [{ id: "{{id}}", version: "{{version}}", status: "{{status}}" }] },
+        params: [P("id", "Case-ID", { required: true }), P("version", "Versie (uit 'ophalen')", { required: true }), P("status", "Status", { options: ["open", "in-progress", "closed"], required: true })] },
+      { id: "case.comment", resource: "Case", label: "Reactie toevoegen", method: "POST", path: "/cases/{{id}}/comments", body: { type: "user", comment: "{{comment}}", owner: "securitySolution" }, params: [path("id", "Case-ID"), P("comment", "Reactie", { type: "text", required: true })] },
+      { id: "case.delete", resource: "Case", label: "Case verwijderen", method: "DELETE", path: "/cases", params: [q("ids", "Case-ID's (JSON-array)", { required: true, placeholder: '["id1"]' })] },
+      { id: "alerts.search", resource: "Melding", label: "Detectiemeldingen zoeken", method: "POST", path: "/detection_engine/signals/search", params: [json("query", "Query (Elasticsearch DSL)", { required: true, placeholder: '{"bool":{"filter":[{"term":{"kibana.alert.workflow_status":"open"}}]}}' }), num("size", "Aantal", { default: 20 })] },
+      { id: "alerts.status", resource: "Melding", label: "Status van meldingen zetten", method: "POST", path: "/detection_engine/signals/status", params: [P("signal_ids", "Meldings-ID's", { required: true, format: "list" }), P("status", "Status", { options: ["open", "acknowledged", "closed"], required: true })] },
+      { id: "connector.list", resource: "Connector", label: "Connectors", method: "GET", path: "/actions/connectors" }
+    ] },
+  { id: "securityscorecard", name: "SecurityScorecard", category: "Beveiliging", description: "Beveiligingsscores, factoren, portfolio's en rapporten", color: "#00a65a", website: "https://securityscorecard.com", docs: "https://securityscorecard.readme.io/reference",
+    baseUrl: "https://api.securityscorecard.io", auth: { type: "apiKey", in: "header", name: "Authorization", prefix: "Token ", label: "API-token" }, test: "portfolio.list",
+    operations: [
+      { id: "company.get", resource: "Bedrijf", label: "Score van een bedrijf", method: "GET", path: "/companies/{{domain}}", params: [path("domain", "Domein")] },
+      { id: "company.factors", resource: "Bedrijf", label: "Factoren", method: "GET", path: "/companies/{{domain}}/factors", output: "entries", params: [path("domain", "Domein")] },
+      { id: "company.history", resource: "Bedrijf", label: "Scoreverloop", method: "GET", path: "/companies/{{domain}}/history/score", output: "entries", params: [path("domain", "Domein"), q("from", "Vanaf (JJJJ-MM-DD)"), q("to", "Tot")] },
+      { id: "company.issues", resource: "Bedrijf", label: "Bevindingen per type", method: "GET", path: "/companies/{{domain}}/issues/{{type}}", params: [path("domain", "Domein"), path("type", "Bevindingstype", { placeholder: "patching_cadence_high" })] },
+      { id: "portfolio.list", resource: "Portfolio", label: "Portfolio's", method: "GET", path: "/portfolios", output: "entries" },
+      { id: "portfolio.companies", resource: "Portfolio", label: "Bedrijven in portfolio", method: "GET", path: "/portfolios/{{id}}/companies", output: "entries", params: [path("id", "Portfolio-ID"), q("grade", "Cijfer"), q("industry", "Branche")] },
+      { id: "portfolio.add", resource: "Portfolio", label: "Bedrijf toevoegen", method: "PUT", path: "/portfolios/{{id}}/companies/{{domain}}", params: [path("id", "Portfolio-ID"), path("domain", "Domein")] },
+      { id: "portfolio.remove", resource: "Portfolio", label: "Bedrijf verwijderen", method: "DELETE", path: "/portfolios/{{id}}/companies/{{domain}}", params: [path("id", "Portfolio-ID"), path("domain", "Domein")] },
+      { id: "report.create", resource: "Rapport", label: "Rapport maken", method: "POST", path: "/reports/{{type}}", params: [path("type", "Soort", { default: "summary", options: ["summary", "full-scorecard-json", "issues", "detailed", "events-json"] }), P("scorecard_identifier", "Domein", { required: true })] },
+      { id: "report.recent", resource: "Rapport", label: "Recente rapporten", method: "GET", path: "/reports/recent", output: "entries" }
+    ] },
+  { id: "splunk", name: "Splunk", category: "Beveiliging", description: "Zoekopdrachten, opgeslagen zoekopdrachten, meldingen en events", color: "#65a637", website: "https://splunk.com", docs: "https://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTprolog",
+    baseUrl: "{{url}}", fields: [urlField("Management-adres", "https://splunk.bedrijf.nl:8089")], auth: { type: "bearer", label: "Authentication token", help: "Splunk → Settings → Tokens → New token." }, test: "info",
+    operations: [
+      { id: "search.oneshot", resource: "Zoeken", label: "Zoekopdracht uitvoeren (direct)", method: "POST", path: "/services/search/jobs", bodyType: "form", output: "results", body: { search: "{{search}}", exec_mode: "oneshot", output_mode: "json", earliest_time: "{{earliest}}", latest_time: "{{latest}}", count: "{{count}}" },
+        params: [P("search", "SPL", { type: "text", required: true, placeholder: "search index=main error | head 20" }), P("earliest", "Vanaf", { default: "-24h" }), P("latest", "Tot", { default: "now" }), num("count", "Max resultaten", { default: 100 })] },
+      { id: "search.create", resource: "Zoeken", label: "Zoekjob starten (async)", method: "POST", path: "/services/search/jobs?output_mode=json", bodyType: "form", body: { search: "{{search}}", earliest_time: "{{earliest}}", latest_time: "{{latest}}" }, params: [P("search", "SPL", { type: "text", required: true }), P("earliest", "Vanaf", { default: "-24h" }), P("latest", "Tot", { default: "now" })] },
+      { id: "search.results", resource: "Zoeken", label: "Resultaten van een job", method: "GET", path: "/services/search/jobs/{{sid}}/results?output_mode=json", output: "results", params: [path("sid", "Search-ID"), q("count", "Aantal", { default: "100" })] },
+      { id: "saved.list", resource: "Opgeslagen", label: "Opgeslagen zoekopdrachten", method: "GET", path: "/services/saved/searches?output_mode=json", output: "entry", params: [q("count", "Aantal", { default: "50" })] },
+      { id: "saved.dispatch", resource: "Opgeslagen", label: "Opgeslagen zoekopdracht starten", method: "POST", path: "/services/saved/searches/{{name}}/dispatch?output_mode=json", bodyType: "form", params: [path("name", "Naam"), P("trigger_actions", "Acties uitvoeren", { options: ["0", "1"] })] },
+      { id: "alerts.fired", resource: "Melding", label: "Afgegane meldingen", method: "GET", path: "/services/alerts/fired_alerts?output_mode=json", output: "entry" },
+      { id: "event.submit", resource: "Event", label: "Event indienen", method: "POST", path: "/services/receivers/simple", bodyParam: "event", contentType: "text/plain", params: [P("event", "Event (tekst of JSON)", { type: "text", required: true }), q("index", "Index", { default: "main" }), q("sourcetype", "Sourcetype", { default: "_json" }), q("source", "Bron", { default: "aip" }), q("host", "Host")] },
+      { id: "info", resource: "Server", label: "Serverinfo", method: "GET", path: "/services/server/info?output_mode=json", output: "entry.0.content" }
+    ] },
+  { id: "venafi-cloud", name: "Venafi TLS Protect Cloud", category: "Beveiliging", description: "Certificaten zoeken, aanvragen, downloaden en intrekken (CyberArk Certificate Manager SaaS)", color: "#ff5a00", website: "https://venafi.com", docs: "https://developer.venafi.com/tlsprotectcloud/reference",
+    baseUrl: "{{apiUrl}}", fields: [{ key: "apiUrl", label: "API-adres", default: "https://api.venafi.cloud", placeholder: "https://api.venafi.eu voor EU" }], auth: { type: "apiKey", in: "header", name: "tppl-api-key", label: "API-key" }, test: "me",
+    operations: [
+      { id: "certificate.search", resource: "Certificaat", label: "Certificaten zoeken", method: "POST", path: "/outagedetection/v1/certificatesearch", output: "certificates", params: [json("expression", "Zoekexpressie", { placeholder: '{"operands":[{"field":"subjectCN","operator":"FIND","value":"bedrijf.nl"}]}' }), json("paging", "Paginering", { default: { pageNumber: 0, pageSize: 25 } }), json("ordering", "Sortering", { placeholder: '{"orders":[{"field":"validityEnd","direction":"ASC"}]}' })] },
+      { id: "certificate.get", resource: "Certificaat", label: "Certificaat ophalen", method: "GET", path: "/outagedetection/v1/certificates/{{id}}", params: [path("id", "Certificaat-ID")] },
+      { id: "certificate.download", resource: "Certificaat", label: "Certificaat downloaden (PEM)", method: "GET", path: "/outagedetection/v1/certificates/{{id}}/contents", params: [path("id", "Certificaat-ID"), q("format", "Formaat", { default: "PEM" }), q("chainOrder", "Keten", { default: "EE_FIRST" })] },
+      { id: "certificate.request", resource: "Certificaat", label: "Certificaat aanvragen (CSR)", method: "POST", path: "/outagedetection/v1/certificaterequests", params: [P("certificateSigningRequest", "CSR (PEM)", { type: "text", required: true }), P("applicationId", "Applicatie-ID", { required: true }), P("certificateIssuingTemplateId", "Uitgiftetemplate-ID", { required: true }), P("validityPeriod", "Geldigheid (ISO 8601)", { placeholder: "P90D" })] },
+      { id: "request.get", resource: "Certificaat", label: "Aanvraagstatus", method: "GET", path: "/outagedetection/v1/certificaterequests/{{id}}", params: [path("id", "Aanvraag-ID")] },
+      { id: "certificate.retire", resource: "Certificaat", label: "Certificaten uit beheer halen", method: "POST", path: "/outagedetection/v1/certificates/retirement", params: [P("certificateIds", "Certificaat-ID's", { required: true, format: "list" })] },
+      { id: "application.list", resource: "Applicatie", label: "Applicaties", method: "GET", path: "/outagedetection/v1/applications", output: "applications" },
+      { id: "me", resource: "Account", label: "Mijn account", method: "GET", path: "/v1/useraccounts" }
+    ] },
+  { id: "venafi-datacenter", name: "Venafi TLS Protect Datacenter", category: "Beveiliging", description: "Certificaten aanvragen, vernieuwen en ophalen (Trust Protection Platform)", color: "#ff5a00", website: "https://venafi.com", docs: "https://docs.venafi.com/Docs/current/TopNav/Content/SDK/WebSDK/r-SDK-Certificates-API-Overview.php",
+    baseUrl: "{{url}}/vedsdk", auth: { type: "custom", signer: "venafi-tpp", fields: [urlField("Adres", "https://tpp.bedrijf.local"), { key: "clientId", label: "API-integratie (client-ID)" }, { key: "user", label: "Gebruiker" }, { key: "password", label: "Wachtwoord", secret: true }, { key: "scope", label: "Scope", default: "certificate:manage" }], help: "Maak in TPP een API Integration met scope certificate:manage en geef de gebruiker toegang." }, test: "certificate.list",
+    operations: [
+      { id: "certificate.list", resource: "Certificaat", label: "Certificaten", method: "GET", path: "/Certificates/", output: "Certificates", params: [q("limit", "Aantal", { default: "50" }), q("ParentDnRecursive", "Map (DN)"), q("ValidToLess", "Verloopt vóór (ISO)")] },
+      { id: "certificate.get", resource: "Certificaat", label: "Certificaat ophalen", method: "GET", path: "/Certificates/{{guid}}", params: [path("guid", "GUID")] },
+      { id: "certificate.request", resource: "Certificaat", label: "Certificaat aanvragen", method: "POST", path: "/Certificates/Request", params: [P("PolicyDN", "Map (Policy DN)", { required: true, placeholder: "\\VED\\Policy\\Certificates\\Web" }), P("Subject", "Common name", { required: true }), P("PKCS10", "CSR (optioneel)", { type: "text" }), json("SubjectAltNames", "SAN's", { placeholder: '[{"Type":2,"Name":"www.bedrijf.nl"}]' }), P("ObjectName", "Objectnaam")] },
+      { id: "certificate.retrieve", resource: "Certificaat", label: "Certificaat downloaden", method: "POST", path: "/Certificates/Retrieve", params: [P("CertificateDN", "Certificaat-DN", { required: true }), P("Format", "Formaat", { options: ["Base64", "Base64 (PKCS #8)", "PKCS #12", "DER"], default: "Base64" }), bool("IncludeChain", "Met keten", { default: true }), P("Password", "Wachtwoord (bij sleutel)"), bool("IncludePrivateKey", "Met private key", { default: false })] },
+      { id: "certificate.renew", resource: "Certificaat", label: "Certificaat vernieuwen", method: "POST", path: "/Certificates/Renew", params: [P("CertificateDN", "Certificaat-DN", { required: true }), P("PKCS10", "Nieuwe CSR", { type: "text" })] },
+      { id: "certificate.revoke", resource: "Certificaat", label: "Certificaat intrekken", method: "POST", path: "/Certificates/Revoke", params: [P("CertificateDN", "Certificaat-DN", { required: true }), num("Reason", "Reden", { default: 0 }), P("Comments", "Opmerking")] },
+      { id: "certificate.delete", resource: "Certificaat", label: "Certificaatobject verwijderen", method: "DELETE", path: "/Certificates/{{guid}}", params: [path("guid", "GUID")] }
+    ] },
+
+  // ---------------------------------------------------------------- infra
+  { id: "netscaler-adc", name: "Netscaler ADC", category: "Cloud & infra", description: "Certificaten, bestanden, virtuele servers en configuratie (NITRO API)", color: "#1f2a44", website: "https://netscaler.com", docs: "https://developer-docs.netscaler.com/en-us/adc-nitro-api/current-release/",
+    baseUrl: "{{url}}/nitro/v1", fields: [urlField("Adres (NSIP)", "https://adc.bedrijf.local")],
+    auth: { type: "headers", headers: { "X-NITRO-USER": "{{user}}", "X-NITRO-PASS": "{{password}}" }, fields: [{ key: "user", label: "Gebruiker" }, { key: "password", label: "Wachtwoord", secret: true }] }, test: "version",
+    operations: [
+      { id: "certkey.list", resource: "Certificaat", label: "Certificaat-sleutelparen", method: "GET", path: "/config/sslcertkey", output: "sslcertkey" },
+      { id: "certkey.add", resource: "Certificaat", label: "Certificaat-sleutelpaar toevoegen", method: "POST", path: "/config/sslcertkey", body: { sslcertkey: { certkey: "{{name}}", cert: "{{cert}}", key: "{{key}}", passplain: "{{passphrase}}" } },
+        params: [P("name", "Naam", { required: true }), P("cert", "Certificaatbestand", { required: true, placeholder: "bedrijf.crt (in /nsconfig/ssl)" }), P("key", "Sleutelbestand", { placeholder: "bedrijf.key" }), P("passphrase", "Wachtwoord sleutel")] },
+      { id: "certkey.update", resource: "Certificaat", label: "Certificaat vervangen (update)", method: "POST", path: "/config/sslcertkey?action=update", body: { sslcertkey: { certkey: "{{name}}", cert: "{{cert}}", key: "{{key}}", nodomaincheck: true } }, params: [P("name", "Naam", { required: true }), P("cert", "Nieuw certificaatbestand", { required: true }), P("key", "Nieuw sleutelbestand")] },
+      { id: "certkey.delete", resource: "Certificaat", label: "Certificaat-sleutelpaar verwijderen", method: "DELETE", path: "/config/sslcertkey/{{name}}", params: [path("name", "Naam")] },
+      { id: "file.upload", resource: "Bestand", label: "Bestand uploaden", method: "POST", path: "/config/systemfile", body: { systemfile: { filename: "{{filename}}", filecontent: "{{content}}", filelocation: "{{location}}", fileencoding: "BASE64" } },
+        params: [P("filename", "Bestandsnaam", { required: true }), P("content", "Inhoud (base64)", { type: "text", required: true }), P("location", "Map", { default: "/nsconfig/ssl/" })] },
+      { id: "file.list", resource: "Bestand", label: "Bestanden in map", method: "GET", path: "/config/systemfile", output: "systemfile", params: [q("args", "Map", { default: "filelocation:/nsconfig/ssl" })] },
+      { id: "file.delete", resource: "Bestand", label: "Bestand verwijderen", method: "DELETE", path: "/config/systemfile/{{filename}}", params: [path("filename", "Bestandsnaam"), q("args", "Map", { default: "filelocation:/nsconfig/ssl" })] },
+      { id: "lbvserver.list", resource: "Load balancing", label: "Virtuele servers (LB)", method: "GET", path: "/config/lbvserver", output: "lbvserver" },
+      { id: "lbvserver.stats", resource: "Load balancing", label: "Statistieken virtuele server", method: "GET", path: "/stat/lbvserver/{{name}}", output: "lbvserver", params: [path("name", "Naam")] },
+      { id: "config.save", resource: "Configuratie", label: "Configuratie opslaan", method: "POST", path: "/config/nsconfig?action=save", body: { nsconfig: {} } },
+      { id: "version", resource: "Systeem", label: "Versie", method: "GET", path: "/config/nsversion", output: "nsversion" }
+    ] },
+  { id: "rundeck", name: "Rundeck", category: "Cloud & infra", description: "Projecten, jobs uitvoeren en executions volgen", color: "#f44336", website: "https://rundeck.com", docs: "https://docs.rundeck.com/docs/api/",
+    baseUrl: "{{url}}/api/{{apiVersion}}", fields: [urlField("Adres", "https://rundeck.bedrijf.nl"), { key: "apiVersion", label: "API-versie", default: "45" }],
+    auth: { type: "apiKey", in: "header", name: "X-Rundeck-Auth-Token", label: "API-token", help: "Rundeck → Profiel → User API Tokens." }, test: "info",
+    operations: [
+      { id: "project.list", resource: "Project", label: "Projecten", method: "GET", path: "/projects" },
+      { id: "job.list", resource: "Job", label: "Jobs in project", method: "GET", path: "/project/{{project}}/jobs", params: [path("project", "Project"), q("groupPath", "Groep"), q("jobFilter", "Naam bevat")] },
+      { id: "job.run", resource: "Job", label: "Job uitvoeren", method: "POST", path: "/job/{{id}}/run", params: [path("id", "Job-ID"), json("options", "Opties", { placeholder: '{"omgeving":"prod"}' }), P("argString", "Of: argumentstring", { placeholder: "-omgeving prod" }), P("loglevel", "Logniveau", { options: ["INFO", "DEBUG", "VERBOSE", "WARN", "ERROR"] }), P("asUser", "Als gebruiker"), P("runAtTime", "Gepland (ISO)")] },
+      { id: "execution.get", resource: "Execution", label: "Execution-status", method: "GET", path: "/execution/{{id}}", params: [path("id", "Execution-ID")] },
+      { id: "execution.output", resource: "Execution", label: "Uitvoer", method: "GET", path: "/execution/{{id}}/output", params: [path("id", "Execution-ID"), q("offset", "Vanaf byte"), q("lastlines", "Laatste regels")] },
+      { id: "execution.abort", resource: "Execution", label: "Afbreken", method: "POST", path: "/execution/{{id}}/abort", params: [path("id", "Execution-ID")] },
+      { id: "execution.list", resource: "Execution", label: "Executions van project", method: "GET", path: "/project/{{project}}/executions", output: "executions", params: [path("project", "Project"), q("statusFilter", "Status", { options: ["", "running", "succeeded", "failed", "aborted"] }), q("max", "Aantal", { default: "20" })] },
+      { id: "command.run", resource: "Ad hoc", label: "Commando uitvoeren", method: "POST", path: "/project/{{project}}/run/command", params: [path("project", "Project"), P("exec", "Commando", { required: true }), P("filter", "Nodefilter", { placeholder: "tags: web" })] },
+      { id: "info", resource: "Systeem", label: "Systeeminfo", method: "GET", path: "/system/info" }
+    ] },
+
+  // ---------------------------------------------------------------- service management en voorraad
+  { id: "halopsa", name: "HaloPSA", category: "Klantenservice", description: "Tickets, acties, klanten, sites en gebruikers", color: "#e11d48", website: "https://halopsa.com", docs: "https://halopsa.com/apidoc/",
+    baseUrl: "{{url}}/api", fields: [urlField("Resource-server", "https://bedrijf.halopsa.com"), { key: "authServer", label: "Authorisatieserver", placeholder: "https://bedrijf.halopsa.com/auth" }, { key: "tenant", label: "Tenant (alleen gehoste Halo)" }],
+    auth: { type: "oauth2-client", tokenUrl: "{{authServer}}/token?tenant={{tenant}}", scopes: ["all"], help: "Halo → Configuration → Integrations → Halo API → nieuwe applicatie (Client ID and Secret / services)." }, test: "agent.me",
+    operations: [
+      { id: "ticket.list", resource: "Ticket", label: "Tickets", method: "GET", path: "/Tickets", output: "tickets", params: [q("open_only", "Alleen open", { default: "true" }), q("client_id", "Klant-ID"), q("search", "Zoekterm"), q("page_size", "Aantal", { default: "50" }), q("pageinate", "Pagineren", { default: "true" })] },
+      { id: "ticket.get", resource: "Ticket", label: "Ticket ophalen", method: "GET", path: "/Tickets/{{id}}", params: [path("id", "Ticket-ID"), q("includedetails", "Met details", { default: "true" })] },
+      { id: "ticket.create", resource: "Ticket", label: "Ticket maken", method: "POST", path: "/Tickets", body: [{ summary: "{{summary}}", details: "{{details}}", client_id: "{{clientId}}", site_id: "{{siteId}}", user_id: "{{userId}}", tickettype_id: "{{typeId}}", priority_id: "{{priorityId}}" }],
+        params: [P("summary", "Onderwerp", { required: true }), P("details", "Omschrijving", { type: "text" }), num("clientId", "Klant-ID"), num("siteId", "Site-ID"), num("userId", "Gebruiker-ID"), num("typeId", "Tickettype-ID"), num("priorityId", "Prioriteit-ID")] },
+      { id: "ticket.update", resource: "Ticket", label: "Ticket bijwerken", method: "POST", path: "/Tickets", body: ["{{fields}}"], params: [json("fields", "Velden (met id)", { required: true, placeholder: '{"id":123,"status_id":9}' })] },
+      { id: "action.create", resource: "Actie", label: "Actie/notitie toevoegen", method: "POST", path: "/Actions", body: [{ ticket_id: "{{ticketId}}", note: "{{note}}", outcome: "{{outcome}}", hiddenfromuser: "{{hidden}}" }], params: [num("ticketId", "Ticket-ID", { required: true }), P("note", "Notitie", { type: "text", required: true }), P("outcome", "Uitkomst", { default: "Note" }), bool("hidden", "Verborgen voor klant")] },
+      { id: "client.list", resource: "Klant", label: "Klanten", method: "GET", path: "/Client", output: "clients", params: [q("search", "Zoekterm"), q("count", "Aantal", { default: "50" })] },
+      { id: "client.create", resource: "Klant", label: "Klant maken", method: "POST", path: "/Client", body: [{ name: "{{name}}", website: "{{website}}" }], params: [P("name", "Naam", { required: true }), P("website", "Website")] },
+      { id: "site.list", resource: "Site", label: "Sites", method: "GET", path: "/Site", output: "sites", params: [q("client_id", "Klant-ID")] },
+      { id: "user.list", resource: "Gebruiker", label: "Eindgebruikers", method: "GET", path: "/Users", output: "users", params: [q("client_id", "Klant-ID"), q("search", "Zoekterm")] },
+      { id: "agent.me", resource: "Account", label: "Huidige agent", method: "GET", path: "/Agent/me" }
+    ] },
+  { id: "syncromsp", name: "SyncroMSP", category: "Klantenservice", description: "Klanten, contacten, tickets en assets", color: "#0ea5e9", website: "https://syncromsp.com", docs: "https://api-docs.syncromsp.com/",
+    baseUrl: "https://{{subdomain}}.syncromsp.com/api/v1", fields: [{ key: "subdomain", label: "Subdomein", placeholder: "bedrijf (van bedrijf.syncromsp.com)" }], auth: { type: "bearer", label: "API-token", help: "Syncro → Admin → API Tokens." }, test: "me",
+    operations: [
+      { id: "customer.list", resource: "Klant", label: "Klanten", method: "GET", path: "/customers", output: "customers", params: [q("query", "Zoekterm"), q("email", "E-mail"), q("page", "Pagina")] },
+      { id: "customer.get", resource: "Klant", label: "Klant ophalen", method: "GET", path: "/customers/{{id}}", output: "customer", params: [path("id", "Klant-ID")] },
+      { id: "customer.create", resource: "Klant", label: "Klant maken", method: "POST", path: "/customers", output: "customer", params: [P("business_name", "Bedrijfsnaam"), P("firstname", "Voornaam"), P("lastname", "Achternaam"), P("email", "E-mail", { required: true }), P("phone", "Telefoon"), P("address", "Adres"), P("city", "Plaats"), P("zip", "Postcode")] },
+      { id: "customer.update", resource: "Klant", label: "Klant bijwerken", method: "PUT", path: "/customers/{{id}}", output: "customer", bodyParam: "fields", params: [path("id", "Klant-ID"), json("fields", "Velden", { required: true })] },
+      { id: "contact.create", resource: "Contact", label: "Contact maken", method: "POST", path: "/contacts", params: [num("customer_id", "Klant-ID", { required: true }), P("name", "Naam", { required: true }), P("email", "E-mail"), P("phone", "Telefoon")] },
+      { id: "ticket.list", resource: "Ticket", label: "Tickets", method: "GET", path: "/tickets", output: "tickets", params: [q("status", "Status", { placeholder: "New, In Progress, Resolved" }), q("customer_id", "Klant-ID"), q("since_updated_at", "Gewijzigd sinds (ISO)")] },
+      { id: "ticket.get", resource: "Ticket", label: "Ticket ophalen", method: "GET", path: "/tickets/{{id}}", output: "ticket", params: [path("id", "Ticket-ID")] },
+      { id: "ticket.create", resource: "Ticket", label: "Ticket maken", method: "POST", path: "/tickets", output: "ticket", params: [num("customer_id", "Klant-ID", { required: true }), P("subject", "Onderwerp", { required: true }), P("problem_type", "Probleemtype", { default: "Other" }), P("status", "Status", { default: "New" }), num("contact_id", "Contact-ID"), P("priority", "Prioriteit")] },
+      { id: "ticket.comment", resource: "Ticket", label: "Reactie toevoegen", method: "POST", path: "/tickets/{{id}}/comment", params: [path("id", "Ticket-ID"), P("subject", "Onderwerp", { default: "Update" }), P("body", "Tekst", { type: "text", required: true }), bool("hidden", "Intern (verborgen)"), bool("do_not_email", "Geen e-mail sturen", { default: true })] },
+      { id: "asset.list", resource: "Asset", label: "Assets", method: "GET", path: "/customer_assets", output: "assets", params: [q("customer_id", "Klant-ID"), q("query", "Zoekterm")] },
+      { id: "me", resource: "Account", label: "Mijn account", method: "GET", path: "/me" }
+    ] },
+  { id: "unleashed-software", name: "Unleashed Software", category: "E-commerce", description: "Producten, voorraad, verkooporders en klanten", color: "#2d9cdb", website: "https://unleashedsoftware.com", docs: "https://apidocs.unleashedsoftware.com/",
+    baseUrl: "https://api.unleashedsoftware.com", auth: { type: "custom", signer: "unleashed", fields: [{ key: "apiId", label: "API-ID" }, { key: "apiKey", label: "API-key", secret: true }], help: "Unleashed → Integration → Unleashed API Access." }, test: "product.list",
+    operations: [
+      { id: "product.list", resource: "Product", label: "Producten", method: "GET", path: "/Products/{{page}}", output: "Items", params: [P("page", "Pagina", { in: "path", default: "1" }), q("productCode", "Productcode"), q("productDescription", "Omschrijving"), q("modifiedSince", "Gewijzigd sinds (ISO)"), q("pageSize", "Aantal", { default: "200" })] },
+      { id: "product.get", resource: "Product", label: "Product ophalen", method: "GET", path: "/Products/{{guid}}", params: [path("guid", "Product-GUID")] },
+      { id: "stock.list", resource: "Voorraad", label: "Voorraad", method: "GET", path: "/StockOnHand/{{page}}", output: "Items", params: [P("page", "Pagina", { in: "path", default: "1" }), q("productCode", "Productcode"), q("warehouseCode", "Magazijn"), q("modifiedSince", "Gewijzigd sinds (ISO)")] },
+      { id: "stock.product", resource: "Voorraad", label: "Voorraad van product", method: "GET", path: "/StockOnHand/{{guid}}", params: [path("guid", "Product-GUID")] },
+      { id: "order.list", resource: "Verkooporder", label: "Verkooporders", method: "GET", path: "/SalesOrders/{{page}}", output: "Items", params: [P("page", "Pagina", { in: "path", default: "1" }), q("orderStatus", "Status", { placeholder: "Parked, Placed, Completed" }), q("customerCode", "Klantcode"), q("startDate", "Vanaf (JJJJ-MM-DD)"), q("modifiedSince", "Gewijzigd sinds (ISO)")] },
+      { id: "order.get", resource: "Verkooporder", label: "Verkooporder ophalen", method: "GET", path: "/SalesOrders/{{guid}}", params: [path("guid", "Order-GUID")] },
+      { id: "order.create", resource: "Verkooporder", label: "Verkooporder maken", method: "POST", path: "/SalesOrders/{{$uuid}}", bodyParam: "order", params: [json("order", "Order", { required: true, placeholder: '{"Customer":{"CustomerCode":"KLANT1"},"OrderStatus":"Parked","SalesOrderLines":[{"LineNumber":1,"Product":{"ProductCode":"P1"},"OrderQuantity":2,"UnitPrice":10}],"Tax":{"TaxCode":"G.S.T."}}' })] },
+      { id: "customer.list", resource: "Klant", label: "Klanten", method: "GET", path: "/Customers/{{page}}", output: "Items", params: [P("page", "Pagina", { in: "path", default: "1" }), q("customerCode", "Klantcode"), q("customerName", "Naam")] }
+    ] }
+];
