@@ -352,7 +352,7 @@ async function mcpSelfTest() {
 
 // ============================================================ INSTELLINGEN
 VIEWS.settings = async (main) => {
-  const st = await api("/api/v1/settings");
+  const [st, vs] = await Promise.all([api("/api/v1/settings"), api("/api/v1/versions/stats").catch(() => null)]);
   S.settings = st;
   main.innerHTML = `
   <div class="head"><div><h1>Instellingen</h1><p>Platformbrede instellingen. Elke wijziging komt in het audit log, met wie het deed.</p></div></div>
@@ -375,7 +375,42 @@ VIEWS.settings = async (main) => {
       <label class="switch"><input type="checkbox" id="set-foureyes" ${st.fourEyes ? "checked" : ""} aria-label="Vier-ogenprincipe"><span></span></label>
     </div>
     <div class="row" style="margin-top:14px">Nu: ${st.fourEyes ? '<span class="chip ok">aan — TEST/ACC 1 goedkeuring (niet door indiener), PROD 2 personen</span>' : '<span class="chip warn">uit — alles 1 goedkeuring, indiener mag zelf goedkeuren</span>'}</div>
+  </div></div>
+  <div class="card" style="max-width:820px;margin-top:14px"><div class="ch"><h3>Versies</h3>${vs ? `<span class="faint" style="font-size:.8rem">${vs.versions} versie${vs.versions === 1 ? "" : "s"} van ${vs.processes} proces${vs.processes === 1 ? "" : "sen"}</span>` : ""}</div><div class="cb">
+    <div class="setting">
+      <div>
+        <div class="setting-t">Aantal versies bewaren per proces</div>
+        <div class="muted" style="font-size:.86rem;margin-top:4px">Zo ver kun je terug bij terugzetten en vergelijken (maximaal ${vs ? vs.max : 100}). Oudere versies worden automatisch opgeruimd. Versies die op een omgeving draaien of in een openstaand goedkeuringsverzoek staan, blijven altijd bewaard.</div>
+      </div>
+      <div class="row" style="flex-wrap:nowrap"><input class="f" type="number" id="set-ret" min="1" max="${vs ? vs.max : 100}" value="${st.versionRetention ?? 50}" style="width:90px" aria-label="Aantal versies"><button class="btn sec" id="set-ret-save" data-ico-done>${ic("save")}<span>Opslaan</span></button></div>
+    </div>
+    <div class="setting" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div>
+        <div class="setting-t">Opschonen: oude versies van alle processen verwijderen</div>
+        <div class="muted" style="font-size:.86rem;margin-top:4px">Verwijdert alle oude versies van alle processen. Per proces blijven alleen de nieuwste versie en de versies die op DEV, TEST, ACC of PROD draaien. Dit kan niet ongedaan worden gemaakt.</div>
+        ${vs ? `<div class="hint" style="margin-top:6px">${vs.removableCleanup ? `<b>${vs.removableCleanup}</b> van de ${vs.versions} versies kunnen weg.` : "Er valt niets op te schonen."}</div>` : ""}
+      </div>
+      <button class="btn no" id="set-cleanup" data-ico-done ${vs && !vs.removableCleanup ? "disabled" : ""}>${ic("trash")}<span>Opschonen</span></button>
+    </div>
   </div></div>`;
+  document.getElementById("set-ret-save").addEventListener("click", async () => {
+    const n = Number(document.getElementById("set-ret").value);
+    const max = vs ? vs.max : 100;
+    if (!Number.isInteger(n) || n < 1 || n > max) return toast(`Kies een aantal tussen 1 en ${max}`, true);
+    const lower = n < (st.versionRetention ?? 50);
+    const go = async () => { await api("/api/v1/settings", { method: "PUT", body: { versionRetention: n } }); toast(`Er worden nu ${n} versies per proces bewaard`); render(); };
+    if (!lower) return go().catch((err) => toast(err.message, true));
+    confirmModal("Minder versies bewaren", `Vanaf nu blijven per proces de nieuwste ${n} versies bewaard. Oudere versies worden meteen verwijderd (versies die op een omgeving draaien blijven staan).`, () => go().catch((err) => toast(err.message, true)), "Opslaan en opruimen");
+  });
+  document.getElementById("set-cleanup").addEventListener("click", () => {
+    confirmModal("Alle oude versies verwijderen?", `${vs ? `<b>${vs.removableCleanup}</b> versie${vs.removableCleanup === 1 ? "" : "s"} van ${vs.processes} proces${vs.processes === 1 ? "" : "sen"} ${vs.removableCleanup === 1 ? "wordt" : "worden"} definitief verwijderd. ` : ""}Per proces blijven alleen de nieuwste versie en de versies die op een omgeving draaien. Dit kan niet ongedaan worden gemaakt.`, async () => {
+      try {
+        const r = await api("/api/v1/versions/cleanup", { body: { confirm: true } });
+        toast(`${r.removed} versie${r.removed === 1 ? "" : "s"} verwijderd uit ${r.processes} proces${r.processes === 1 ? "" : "sen"}`);
+        render();
+      } catch (err) { toast(err.message, true); }
+    }, "Definitief verwijderen");
+  });
   document.getElementById("set-lang").addEventListener("change", (e) => window.I18N.set(e.target.value));
   document.getElementById("set-foureyes").addEventListener("change", (e) => {
     const on = e.target.checked;

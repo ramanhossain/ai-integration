@@ -6,7 +6,8 @@ import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
 import { manifest, callTool } from "../mcp/bridge";
 import { persistence } from "../store";
-import { settings } from "../domain/settings";
+import { settings, MAX_VERSION_RETENTION } from "../domain/settings";
+import { deployments } from "../domain/deployments";
 import { ENVIRONMENTS } from "../domain/environments";
 import type { Action, Integration } from "../domain/types";
 
@@ -27,15 +28,66 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/settings", { schema: { tags: ["settings"] } }, async () => settings.get());
   app.put<{ Body: { fourEyes?: boolean } }>(
     "/api/v1/settings",
-    { schema: { tags: ["settings"], body: { type: "object", additionalProperties: false, properties: { fourEyes: { type: "boolean" } } } } },
-    async (req) => settings.update(req.body ?? {}, String(req.headers["x-aip-user"] || "gebruiker").slice(0, 80))
+    { schema: { tags: ["settings"], body: { type: "object", additionalProperties: false, properties: { fourEyes: { type: "boolean" }, versionRetention: { type: "integer", minimum: 1, maximum: MAX_VERSION_RETENTION } } } } },
+    async (req, reply) => {
+      const actor = String(req.headers["x-aip-user"] || "gebruiker").slice(0, 80);
+      let next;
+      try { next = settings.update(req.body ?? {}, actor); } catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
+      // Lager aantal bewaarde versies: meteen opruimen.
+      if (req.body && (req.body as { versionRetention?: number }).versionRetention !== undefined) deployments.pruneAll(next.versionRetention, pendingVersions, actor);
+      return next;
+    }
+  );
+
+  // ---- Versies opruimen ----
+  // Versies waar een openstaand goedkeuringsverzoek (deploy) naar verwijst, blijven altijd staan.
+  function pendingVersions(name: string): Set<number> {
+    const out = new Set<number>();
+    for (const a of approvals.list({ status: "pending" })) {
+      const t = a.action.target as { integration?: string } | undefined;
+      const v = (a.action.payload as { version?: number } | undefined)?.version;
+      if (t?.integration === name && typeof v === "number") out.add(v);
+    }
+    return out;
+  }
+  app.get("/api/v1/versions/stats", { schema: { tags: ["settings"], summary: "Aantal versies en hoeveel er opgeruimd kunnen worden" } }, async () => ({
+    retention: settings.get().versionRetention,
+    max: MAX_VERSION_RETENTION,
+    ...deployments.versionStats(settings.get().versionRetention, pendingVersions)
+  }));
+  app.post<{ Body: { keep?: number; confirm: boolean } }>(
+    "/api/v1/versions/cleanup",
+    {
+      schema: {
+        tags: ["settings"],
+        summary: "Oude versies van alle processen verwijderen (nieuwste en actieve versies blijven)",
+        body: { type: "object", required: ["confirm"], additionalProperties: false, properties: { keep: { type: "integer", minimum: 1, maximum: MAX_VERSION_RETENTION }, confirm: { type: "boolean" } } }
+      }
+    },
+    async (req, reply) => {
+      if (req.body.confirm !== true) return reply.code(400).send({ error: "Bevestig met confirm: true" });
+      const actor = String(req.headers["x-aip-user"] || "gebruiker").slice(0, 80);
+      const r = deployments.pruneAll(req.body.keep ?? 1, pendingVersions, actor);
+      audit.append({ actor, event: "versions.cleanup", subject: "platform", data: { keep: req.body.keep ?? 1, removed: r.removed, processes: r.processes } });
+      return r;
+    }
   );
 
   // ---- Integraties (Integration-as-Code) ----
-  app.post<{ Body: Integration }>(
+  app.post<{ Body: Integration; Querystring: { note?: string } }>(
     "/api/v1/integrations",
-    { schema: { tags: ["integrations"], body: { $ref: "https://aip.local/schemas/integration.json#" } } },
-    async (req) => registry.upsertIntegration(req.body)
+    {
+      schema: {
+        tags: ["integrations"],
+        summary: "Opslaan als nieuwe versie op DEV (optioneel met wijzigingsnotitie ?note=)",
+        querystring: { type: "object", properties: { note: { type: "string", maxLength: 500 } } },
+        body: { $ref: "https://aip.local/schemas/integration.json#" }
+      }
+    },
+    async (req) => {
+      const note = (req.query.note ?? "").trim();
+      return registry.upsertIntegration(req.body, note ? { note } : {});
+    }
   );
   app.get("/api/v1/integrations", { schema: { tags: ["integrations"] } }, async () => registry.listIntegrations());
   app.get<{ Params: { name: string } }>(

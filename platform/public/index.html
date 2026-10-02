@@ -573,6 +573,63 @@
   .hist-list .btn.icon { margin-right:6px; }
   .msg.sep { align-self:center; background:none !important; border:0 !important; box-shadow:none !important; color:var(--faint); font-size:.72rem; padding:0 !important; }
   #dock-go.icon { width:38px; height:38px; }
+  .btn.sm.skip { border-style:dashed; color:var(--muted); }
+  .btn.sm.skip:hover { color:var(--fg); border-color:var(--accent); }
+  /* Versies: terugzetten en vergelijken */
+  .modal .box.wide { width:min(920px,100%); }
+  .vm-cb { max-height:74vh; overflow:auto; }
+  .vm-envs { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; font-size:.85rem; }
+  .vm-tabs { display:inline-flex; margin-bottom:12px; } .vm-tabs button { display:inline-flex; align-items:center; gap:5px; }
+  .vm-note { margin-top:6px; font-size:.84rem; color:var(--muted); display:flex; gap:6px; align-items:center; }
+  .vm-cmp-sel { display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:end; margin-bottom:12px; }
+  .vm-sum { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; font-size:.9rem; }
+  .vm-arrow { color:var(--faint); }
+  .vm-chips { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 4px; }
+  .vm-sec { margin-top:14px; } .vm-sec h4 { margin:0 0 6px; font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .vm-steps { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
+  .vm-steps li { padding:6px 10px; border-radius:7px; font-size:.86rem; } .vm-steps li.add { background:var(--green-bg); } .vm-steps li.del { background:var(--red-bg); text-decoration:line-through; text-decoration-color:rgba(0,0,0,.25); }
+  .vm-step { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:6px; font-size:.86rem; }
+  .vm-props { width:100%; margin-top:6px; font-size:.76rem; } .vm-props td { padding:4px 6px; border-bottom:1px solid var(--border); vertical-align:top; word-break:break-word; }
+  .vm-props .vm-old { background:var(--red-bg); color:var(--red); } .vm-props .vm-new { background:var(--green-bg); color:#146c3a; } .vm-props .vm-arrow { width:14px; text-align:center; }
+  .vm-raw { margin-top:8px; background:#0f1f3d; color:#d6e2f5; border-radius:8px; padding:8px 0; font-family:var(--mono); font-size:.74rem; max-height:360px; overflow:auto; }
+  .vm-raw .dl { white-space:pre; padding:0 12px; } .vm-raw .dl span { display:inline-block; width:14px; color:#8b97ab; }
+  .vm-raw .dl.add { background:rgba(34,197,94,.18); } .vm-raw .dl.del { background:rgba(239,68,68,.2); } .vm-raw .dl.gap { color:#8b97ab; }
+  .lnk .ico { display:inline-block; vertical-align:-2px; margin-right:3px; }
+  .ver-lnk { display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-weight:500; color:var(--fg); }
+  .ver-lnk .ico { color:var(--faint); } .ver-lnk:hover .ico { color:var(--accent); }
+  /* Versies vergelijken in BPMN + versiekeuzelijst */
+  .vm-legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:.78rem; margin:6px 0 8px; }
+  .vm-legend .lg { display:inline-flex; align-items:center; gap:5px; } .vm-legend .lg::before { content:""; width:12px; height:12px; border-radius:3px; border:2px solid; }
+  .vm-legend .lg.add::before { border-color:#1f9d55; background:#e8f7ee; } .vm-legend .lg.del::before { border-color:#d64545; background:#fdecec; } .vm-legend .lg.chg::before { border-color:#e8900c; background:#fff4e0; }
+  .vm-bpmn { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:760px){ .vm-bpmn { grid-template-columns:1fr; } }
+  .vm-pane { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface-2); }
+  .vm-pane-h { padding:6px 10px; font-size:.8rem; font-weight:600; border-bottom:1px solid var(--border); background:var(--surface); }
+  .vm-canvas { height:300px; position:relative; }
+  .vm-canvas .nd.vm-add .body { stroke:#1f9d55 !important; stroke-width:3 !important; fill:#e8f7ee !important; }
+  .vm-canvas .nd.vm-del .body { stroke:#d64545 !important; stroke-width:3 !important; fill:#fdecec !important; stroke-dasharray:6 4; }
+  .vm-canvas .nd.vm-chg .body { stroke:#e8900c !important; stroke-width:3 !important; fill:#fff4e0 !important; }
+  .vm-canvas .nd.sel .body { filter:drop-shadow(0 0 6px rgba(45,108,223,.55)); }
+  .vm-canvas .nd { cursor:pointer; }
+  .vm-detail { margin-top:12px; border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+  .vm-detail h4 { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .vm-detail .vm-sec:first-child { margin-top:0; }
+  .vm-steps li.add, .vm-steps li.del, .vm-steps li.chg { background:none; text-decoration:none; padding:0; }
+  .vm-step-btn { width:100%; text-align:left; background:var(--surface-2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; cursor:pointer; font:inherit; font-size:.86rem; color:var(--fg); display:flex; gap:8px; align-items:center; }
+  .vm-step-btn:hover { border-color:var(--accent); }
+  .vm-props th { font-size:.66rem; padding:4px 6px; }
+  .ver-dd { display:inline-flex; align-items:center; gap:4px; font:inherit; font-family:var(--mono); font-size:.84rem; background:var(--surface); border:1px solid var(--border-2); border-radius:6px; padding:3px 6px 3px 8px; cursor:pointer; color:var(--fg); }
+  .ver-dd:hover { border-color:var(--accent); } .ver-dd .ico { color:var(--muted); }
+  .vm-menu { position:fixed; z-index:40; width:min(460px, calc(100vw - 16px)); background:var(--surface); border:1px solid var(--border-2); border-radius:10px; box-shadow:0 14px 40px rgba(15,31,61,.22); overflow:hidden; }
+  .vm-menu-h { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:.84rem; }
+  .vm-menu-list { max-height:340px; overflow:auto; padding:4px; }
+  .vm-mi { display:flex; align-items:center; gap:4px; border-radius:7px; }
+  .vm-mi:hover { background:var(--surface-2); }
+  .vm-mi-main { flex:1; min-width:0; display:flex; gap:10px; align-items:center; text-align:left; background:none; border:0; padding:7px 8px; cursor:pointer; font:inherit; color:var(--fg); }
+  .vm-mi-main .ver { font-family:var(--mono); min-width:34px; }
+  .vm-mi-t { display:flex; flex-direction:column; min-width:0; flex:1; font-size:.78rem; color:var(--muted); }
+  .vm-mi-n { color:var(--fg); font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vm-mi-e { display:flex; gap:3px; }
 </style>
 </head>
 <body>
@@ -657,6 +714,7 @@
 <script src="/app/editor.js"></script>
 <script src="/app/app.js"></script>
 <script src="/app/admin.js"></script>
+<script src="/app/versions.js"></script>
 <script src="/app/infra.js"></script>
 <script src="/app/plugins.js"></script>
 <script src="/app/assistant.js"></script>
