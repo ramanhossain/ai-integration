@@ -69,7 +69,7 @@ $("#envs").addEventListener("click", (e) => {
 document.querySelectorAll("[data-who]").forEach((b) => b.addEventListener("click", () => ($("#approver").value = b.dataset.who)));
 
 // ---------- modal ----------
-function openModal(html) { $("#modal-box").innerHTML = html; $("#modal").classList.remove("hide"); }
+function openModal(html) { $("#modal-box").className = "box"; $("#modal-box").innerHTML = html; $("#modal").classList.remove("hide"); }
 function closeModal() { $("#modal").classList.add("hide"); $("#modal-box").innerHTML = ""; }
 $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal" || e.target.closest("[data-close]")) closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -292,13 +292,24 @@ VIEWS.processes = async (main) => {
       const can = (d.promotable || []).includes(e.id);
       const src = ENVS[ENVS.indexOf(e) - 1];
       return `<td class="${e.id === S.env ? "cur" : ""}"><div class="envcell">${v != null ? `<span class="ver">v${v}</span>` : `<span class="faint">—</span>`}
-        ${can ? `<button class="btn sm sec" data-act="deploy" data-name="${esc(i.integration)}" data-env="${e.id}" data-ico-done title="v${d.envs[src.id]} van ${src.label} naar ${e.label} deployen" aria-label="v${d.envs[src.id]} naar ${e.label} deployen">${ic("rocket", 14)}<span>v${d.envs[src.id]}</span></button>` : ""}</div></td>`;
+        ${can ? `<button class="btn sm sec" data-act="deploy" data-name="${esc(i.integration)}" data-env="${e.id}" data-ico-done title="v${d.envs[src.id]} van ${src.label} naar ${e.label} deployen" aria-label="v${d.envs[src.id]} naar ${e.label} deployen">${ic("rocket", 14)}<span>v${d.envs[src.id]}</span></button>` : ""}
+        ${skipBtn(i.integration, d, e, can ? d.envs[src.id] : null)}</div></td>`;
     }).join("");
     return `<tr>${selCell(i.integration)}<td><a href="#editor/${encodeURIComponent(i.integration)}"><b>${esc(i.integration)}</b></a><div class="faint" style="font-size:.78rem;max-width:320px">${esc(i.description || "")}</div></td>
-      <td><span class="chip info">${esc((PC.TRIGGERS[i.trigger?.type] || { label: i.trigger?.type }).label)}</span></td><td>${status(i.integration)}</td><td class="ver">v${esc(i.version)}</td>${cells}
-      <td><div class="row icons" style="justify-content:flex-end;flex-wrap:nowrap">${S.env === "dev" ? iconBtn("edit", "Bewerken op DEV", `data-go="editor/${encodeURIComponent(i.integration)}"`) : iconBtn("eye", "Bekijken (alleen-lezen)", `data-go="editor/${encodeURIComponent(i.integration)}"`)}${iconBtn("rocket", "Deployen naar TEST, ACC of PROD (ook overslaan of terugzetten)", `data-act="deploy-dialog" data-name="${esc(i.integration)}"`)}${iconBtn("download", "Exporteren als JSON", `data-act="export" data-name="${esc(i.integration)}"`)}${d.envs[S.env] != null ? iconBtn("play", `Uitvoeren op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}"`, "sm run") : iconBtn("play", `Niet gedeployed op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}" disabled`, "sm sec")}</div></td></tr>`;
+      <td><span class="chip info">${esc((PC.TRIGGERS[i.trigger?.type] || { label: i.trigger?.type }).label)}</span></td><td>${status(i.integration)}</td><td class="ver"><button type="button" class="ver-dd" data-act="version-menu" data-name="${esc(i.integration)}" data-ico-done aria-haspopup="menu" title="Versies: vergelijken of terugzetten">v${esc(i.version)} <svg class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></td>${cells}
+      <td><div class="row icons" style="justify-content:flex-end;flex-wrap:nowrap">${S.env === "dev" ? iconBtn("edit", "Bewerken op DEV", `data-go="editor/${encodeURIComponent(i.integration)}"`) : iconBtn("eye", "Bekijken (alleen-lezen)", `data-go="editor/${encodeURIComponent(i.integration)}"`)}${iconBtn("rocket", "Deployen naar TEST, ACC of PROD (ook overslaan of terugzetten)", `data-act="deploy-dialog" data-name="${esc(i.integration)}"`)}${iconBtn("history", "Versies: terugzetten of vergelijken", `data-act="versions" data-name="${esc(i.integration)}"`)}${iconBtn("download", "Exporteren als JSON", `data-act="export" data-name="${esc(i.integration)}"`)}${d.envs[S.env] != null ? iconBtn("play", `Uitvoeren op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}"`, "sm run") : iconBtn("play", `Niet gedeployed op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}" disabled`, "sm sec")}</div></td></tr>`;
   }).join("")}</tbody></table>` : `<div class="empty">Nog geen processen. Maak er een met “+ Nieuw proces” of met de AI-assistent.</div>`}</div></div>`;
 };
+
+// ACC/PROD: DEV-versie direct deployen en de omgevingen ertussen overslaan. Opent de
+// deploy-dialoog (met waarschuwing en keuze van de infrastructuur); daarna volgt goedkeuring.
+function skipBtn(name, d, e, promoteV) {
+  const devV = d.envs.dev;
+  if (e.id === "dev" || e.id === "test" || devV == null || d.envs[e.id] === devV || promoteV === devV) return "";
+  const between = ENVS.slice(1, ENVS.indexOf(e)).filter((x) => d.envs[x.id] !== devV).map((x) => x.label);
+  const tip = `DEV v${devV} direct naar ${e.label}${between.length ? ` (${between.join(" en ")} overslaan)` : ""}`;
+  return `<button class="btn sm sec skip" data-act="deploy-dialog" data-name="${esc(name)}" data-env="${e.id}" data-v="${devV}" data-ico-done title="${esc(tip)}" aria-label="${esc(tip)}">${ic("rocket", 14)}<span>DEV v${devV}</span></button>`;
+}
 
 async function bulkTriggers(keys, action) {
   const r = await api("/api/v1/integrations/bulk", { body: { action, names: keys, env: S.env } });
@@ -915,12 +926,32 @@ function cleanDef(def) {
   return JSON.parse(JSON.stringify(out));
 }
 
+// Wijzigingsnotitie bij opslaan (optioneel). null = geannuleerd.
+function askNote(isNew) {
+  return new Promise((resolve) => {
+    openModal(`<div class="ch"><h3>${ic("save")} Opslaan als nieuwe versie op DEV</h3><button class="x" data-close aria-label="Sluiten">×</button></div>
+      <form class="cb" id="note-form"><label class="xf-l" for="note-in">Wat is er veranderd? <span class="faint">(optioneel)</span></label>
+        <input class="f" id="note-in" maxlength="500" autocomplete="off" placeholder="${isNew ? "Eerste versie" : "Bijv. retry verhoogd naar 5, e-mailstap toegevoegd"}">
+        <div class="hint">De notitie staat bij de versie en helpt bij terugzetten en vergelijken.</div></form>
+      <div class="cf"><button class="btn sec" data-close>Annuleren</button><button class="btn" id="note-ok" data-ico-done>${ic("save")}<span>Opslaan</span></button></div>`);
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; closeModal(); resolve(v); };
+    const input = document.getElementById("note-in");
+    setTimeout(() => input.focus(), 0);
+    document.getElementById("note-form").addEventListener("submit", (e) => { e.preventDefault(); finish(input.value.trim()); });
+    document.getElementById("note-ok").addEventListener("click", () => finish(input.value.trim()));
+    document.querySelectorAll("#modal-box [data-close]").forEach((b) => b.addEventListener("click", () => finish(null)));
+  });
+}
+
 async function saveEditor() {
   const E = S.editor;
   if (!/^[A-Za-z][A-Za-z0-9_-]{2,63}$/.test(E.def.integration)) { E.sideOpen = true; $("#ed-side")?.classList.remove("hide"); renderSide(); return toast("Geef het proces eerst een geldige naam (begin met een letter, 3–64 tekens, geen spaties).", true); }
   const problems = validateGraph(E.def);
   if (problems.length) return toast(problems[0], true);
-  const saved = await api("/api/v1/integrations", { body: { ...cleanDef(E.def), owner: who() } });
+  const note = await askNote(E.isNew);
+  if (note === null) return;
+  const saved = await api(`/api/v1/integrations${note ? `?note=${encodeURIComponent(note)}` : ""}`, { body: { ...cleanDef(E.def), owner: who() } });
   if (E.isNew) localSet(`aip.test.${saved.integration}`, E.testInput);
   toast(`Opgeslagen als v${saved.version} op DEV`);
   S.editor = null;

@@ -91,6 +91,14 @@ Velden accepteren templates: `{{veld.pad}}`, `{{$now}}`, `{{$date}}`, `{{$uuid}}
 Externe stappen krijgen de retry-instellingen van het proces; daarna optioneel dead-letter.
 Zonder URL/koppeling worden HTTP, e-mail en Teams/Slack gesimuleerd (handig op DEV).
 
+## Versies
+
+Elk opslaan maakt een nieuwe versie op DEV, met optioneel een wijzigingsnotitie. Op de processenpagina opent het versienummer een keuzelijst met alle versies (datum, auteur, notitie, omgeving):
+- **Vergelijken** in BPMN: oud en nieuw naast elkaar; stappen gekleurd als nieuw, verwijderd of gewijzigd. Klik op een stap voor de gewijzigde velden (oud → nieuw), inclusief trigger en verbindingen.
+- **Terugzetten**: op DEV als kopie (nieuwe versie), op TEST/ACC/PROD via deploy met goedkeuring.
+- **Instellingen → Versies**: aantal bewaarde versies per proces (standaard 50, maximaal 100; oudere worden automatisch opgeruimd) en **Opschonen** (alle oude versies van alle processen verwijderen). Versies die op een omgeving draaien of in een openstaand goedkeuringsverzoek staan, blijven altijd bewaard.
+- API: `GET /api/v1/integrations/:name/versions`, `GET /api/v1/versions/stats`, `POST /api/v1/versions/cleanup`, `POST /api/v1/integrations?note=…`.
+
 ## Plugins (connectors naar externe diensten)
 
 Pagina **Plugins** (Ontwikkelen → Plugins) toont alle connectors: 284 in de catalogus, waarvan 282 uitgewerkt met 1454 operaties. Nog *gepland*: Orbit (dienst gestopt in 2024) en Flow (API-documentatie van getflow.com niet bereikbaar). Eigen implementatie op de publieke API's van de diensten.

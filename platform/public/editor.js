@@ -358,7 +358,7 @@
       if (runState) st = n.id === "start" ? "ok" : runState.failed.has(n.id) ? "failed" : runState.ok.has(n.id) ? "ok" : "skipped";
       const isSel = multi.has(n.id) || (selected && selected.kind === "node" && selected.id === n.id);
       const call = n.type === "subprocess";
-      const cls = ["nd", `nd-${g.shape}`, call ? "nd-call" : "", n.disabled ? "off" : "", flashIds.has(n.id) ? "flash" : "", isSel ? "sel" : "", st === "ok" ? "ok" : "", st === "failed" ? "fail" : "", st === "skipped" ? "dim" : ""].join(" ");
+      const cls = ["nd", `nd-${g.shape}`, call ? "nd-call" : "", n.disabled ? "off" : "", flashIds.has(n.id) ? "flash" : "", isSel ? "sel" : "", st === "ok" ? "ok" : "", st === "failed" ? "fail" : "", st === "skipped" ? "dim" : "", opts.nodeClass ? opts.nodeClass(n.id) || "" : ""].join(" ");
       const name = n.type === "start" ? (TRIGGERS[def.trigger?.type] || { label: def.trigger?.type || "trigger" }).label : n.name || n.id;
       let body = "", inner = "", labels = "", art = "";
       if (g.shape === "start" || g.shape === "end" || g.shape === "timer") {

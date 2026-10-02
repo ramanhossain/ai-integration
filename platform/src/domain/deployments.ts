@@ -3,6 +3,7 @@ import { ENVIRONMENTS, sourceEnv, type EnvName } from "./environments";
 import { persistence } from "../store";
 import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
+import { settings } from "./settings";
 
 // Beheert versies en deployments. Elke integratie krijgt een oplopend versienummer
 // bij elke wijziging. Bewerken kan ALLEEN op DEV: opslaan maakt altijd een nieuwe versie
@@ -69,7 +70,60 @@ class Deployments {
     this.persistState(s);
     audit.append({ actor: by, event: "version.created", subject: def.integration, data: { version, ...extra } });
     bus.publish("version.created", { integration: def.integration, version });
+    this.prune(def.integration, settings.get().versionRetention);
     return s;
+  }
+
+  // ---------- opruimen ----------
+  // Versies van een proces (oplopend) die bestaan.
+  private existing(name: string): number[] {
+    const s = this.states.get(name);
+    const out: number[] = [];
+    const max = s?.latestVersion ?? 0;
+    for (let v = 1; v <= max; v++) if (this.snapshots.has(`${name}@${v}`)) out.push(v);
+    return out;
+  }
+  // Versies die weg mogen als er `keep` bewaard blijven: nooit de nieuwste `keep`,
+  // nooit een versie die op een omgeving actief is, nooit een versie in `protect`.
+  removable(name: string, keep: number, protect: Set<number> = new Set()): number[] {
+    const s = this.states.get(name);
+    if (!s) return [];
+    const all = this.existing(name);
+    const newest = new Set(all.slice(-Math.max(1, keep)));
+    const active = new Set(Object.values(s.envs).filter((v): v is number => v != null));
+    return all.filter((v) => !newest.has(v) && !active.has(v) && !protect.has(v));
+  }
+  private dropVersion(name: string, v: number): void {
+    const key = `${name}@${v}`;
+    this.snapshots.delete(key);
+    this.meta.delete(key);
+    persistence.delete("versions", key);
+    persistence.delete("version-meta", key);
+  }
+  prune(name: string, keep: number, protect?: Set<number>, by = "system"): number[] {
+    const gone = this.removable(name, keep, protect);
+    for (const v of gone) this.dropVersion(name, v);
+    if (gone.length) audit.append({ actor: by, event: "versions.pruned", subject: name, data: { removed: gone, keep } });
+    return gone;
+  }
+  // Voor alle processen; `keep` standaard de instelling.
+  pruneAll(keep: number, protectOf: (name: string) => Set<number> = () => new Set(), by = "system"): { processes: number; removed: number; details: Array<{ integration: string; removed: number[] }> } {
+    const details: Array<{ integration: string; removed: number[] }> = [];
+    for (const name of this.states.keys()) {
+      const removed = this.prune(name, keep, protectOf(name), by);
+      if (removed.length) details.push({ integration: name, removed });
+    }
+    if (details.length) bus.publish("versions.pruned", { processes: details.length });
+    return { processes: details.length, removed: details.reduce((n, d) => n + d.removed.length, 0), details };
+  }
+  versionStats(keep: number, protectOf: (name: string) => Set<number> = () => new Set()): { processes: number; versions: number; removableAtRetention: number; removableCleanup: number } {
+    let versions = 0, atRet = 0, cleanup = 0;
+    for (const name of this.states.keys()) {
+      versions += this.existing(name).length;
+      atRet += this.removable(name, keep, protectOf(name)).length;
+      cleanup += this.removable(name, 1, protectOf(name)).length;
+    }
+    return { processes: this.states.size, versions, removableAtRetention: atRet, removableCleanup: cleanup };
   }
 
   // Standaardversie voor een deploy naar `toEnv`: de versie op de vorige omgeving, of
