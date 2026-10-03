@@ -11,6 +11,7 @@ import { datatables, type Condition } from "../connectors/datatables";
 import { authHeaders, sendMail, sqlQuery, notify, mcpCall } from "../connectors/services";
 import { plugins } from "../plugins/registry";
 import { executePlugin } from "../plugins/runtime";
+import { safeFetch } from "../net/egress";
 
 export interface NodeContext {
   integration: string;
@@ -172,7 +173,7 @@ const nodes: Record<string, NodeHandler> = {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), Number(c.timeoutMs || 30000));
     try {
-      const res = await fetch(u, { method, headers, body, signal: ctrl.signal });
+      const res = await safeFetch(u, { method, headers, body, signal: ctrl.signal });
       const text = await res.text();
       let data: unknown = text;
       try { data = JSON.parse(text); } catch { /* tekst */ }

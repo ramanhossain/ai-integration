@@ -2,6 +2,7 @@ import { ENVIRONMENTS, type EnvName } from "../domain/environments";
 import { persistence } from "../store";
 import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
+import { scoped } from "../tenancy/context";
 
 // Ingebouwde datatabellen: eenvoudige tabellen met getypeerde
 // kolommen om gegevens tussen uitvoeringen op te slaan (status, koppeltabellen, tijdelijke
@@ -270,4 +271,4 @@ class DataTables {
   }
 }
 
-export const datatables = new DataTables();
+export const datatables = scoped("datatables", () => new DataTables());

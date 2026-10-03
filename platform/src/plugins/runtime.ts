@@ -5,6 +5,8 @@ import { credentials } from "../connectors/credentials";
 import type { AuthDef, OperationDef, ParamDef, PluginDef } from "./types";
 import { runDriver } from "./drivers";
 import { applySigner } from "./signers";
+import { currentOrg } from "../tenancy/context";
+import { safeFetch } from "../net/egress";
 
 // Voert een operatie van een plugin uit: bouwt URL, headers en body uit de definitie,
 // de parameters (al getemplated met het bericht) en de koppeling van de omgeving.
@@ -137,7 +139,7 @@ async function tokenRequest(url: string, form: Record<string, string>, clientId:
   const body = new URLSearchParams(how === "body" ? { ...form, client_id: clientId, client_secret: clientSecret } : form);
   const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
   if (how === "basic") headers.authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
-  const res = await fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await safeFetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(text); } catch { data = Object.fromEntries(new URLSearchParams(text)); }
@@ -162,7 +164,7 @@ export async function exchangeCode(def: PluginDef, values: Record<string, string
 async function accessToken(def: PluginDef, credName: string, env: EnvName, values: Record<string, string>): Promise<string> {
   const auth = def.auth;
   if (auth.type === "oauth2-client") {
-    const key = `${env}:${credName}`;
+    const key = `${currentOrg()}:${env}:${credName}`;
     const hit = clientTokens.get(key);
     if (hit && hit.exp > Date.now() + 30000) return hit.token;
     const t = await tokenRequest(String(fill(auth.tokenUrl, values)), { grant_type: "client_credentials", ...(auth.scopes?.length ? { scope: auth.scopes.join(" ") } : {}) }, values.clientId, values.clientSecret, auth.tokenAuth);
@@ -273,7 +275,7 @@ export async function executePlugin(call: PluginCall): Promise<{ status: number;
   if (a.type === "aws") { signAws(op.method, url, headers, body ?? "", a.service, values); delete headers.host; }
   if (a.type === "custom") await applySigner(a.signer, { def, values, method: op.method, url, headers, body, credKey });
 
-  const res = await fetch(url, { method: op.method, headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await safeFetch(url, { method: op.method, headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
   const text = await res.text();
   const ct = res.headers.get("content-type") || "";
   let data: unknown = text || { ok: true, status: res.status };

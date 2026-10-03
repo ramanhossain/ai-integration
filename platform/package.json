@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "repository": "github:ramanhossain/ai-integration",
-  "description": "Agentic Integration Platform — eigen workflow-engine, omgevingen dev/test/acc/prod, agents en human-in-the-loop",
+  "description": "Agentic Integration Platform \u2014 eigen workflow-engine, omgevingen dev/test/acc/prod, agents en human-in-the-loop",
   "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -15,20 +15,22 @@
     "test:integration": "tsx scripts/integration-test.ts",
     "test:plugins": "tsx scripts/plugin-test.ts",
     "seed": "tsx scripts/seed.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:auth": "tsx scripts/auth-test.ts"
   },
   "dependencies": {
-    "@fastify/static": "^7.0.4",
-    "@fastify/swagger": "^8.14.0",
-    "@fastify/swagger-ui": "^2.1.0",
+    "@fastify/static": "^10.1.5",
+    "@fastify/swagger": "^9.9.1",
+    "@fastify/swagger-ui": "^6.1.1",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "ajv": "^8.17.1",
     "amqplib": "^2.2.0",
     "basic-ftp": "^6.2.1",
     "fast-xml-parser": "^5.11.2",
-    "fastify": "^4.28.1",
+    "fastify": "^5.12.5",
     "imapflow": "^2.1.2",
     "ioredis": "^6.0.0",
+    "isolated-vm": "^7.0.1",
     "kafkajs": "^2.2.4",
     "ldapts": "^9.2.0",
     "mongodb": "^7.7.0",
@@ -50,5 +52,8 @@
     "ftp-srv": "^4.6.3",
     "tsx": "^4.16.0",
     "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

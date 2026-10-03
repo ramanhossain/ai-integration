@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ENVIRONMENTS, type EnvName } from "../domain/environments";
 import { persistence } from "../store";
 import { bus } from "../events/bus";
+import { scoped } from "../tenancy/context";
 
 // Ingebouwde message broker. Een queue bestaat altijd op álle omgevingen (DEV, TEST, ACC,
 // PROD) met dezelfde naam; de berichten zijn per omgeving gescheiden ("dev:orders").
@@ -238,4 +239,4 @@ class Broker {
   }
 }
 
-export const broker = new Broker();
+export const broker = scoped("broker", () => new Broker());

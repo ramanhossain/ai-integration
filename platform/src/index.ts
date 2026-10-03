@@ -26,6 +26,11 @@ import { datatables } from "./connectors/datatables";
 import { triggers } from "./triggers/manager";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpServer } from "./mcp/server";
+import { accounts } from "./auth/accounts";
+import { mailer } from "./auth/mailer";
+import { registerAuth, AUTH_ENABLED } from "./auth/guard";
+import { registerAuthRoutes } from "./api/authRoutes";
+import { hydrateOrg, startOrg } from "./tenancy/boot";
 
 const SCHEMA_DIR = join(__dirname, "..", "schemas");
 const PUBLIC_DIR = join(__dirname, "..", "public");
@@ -44,18 +49,18 @@ export async function buildServer() {
   });
 
   // Persistentie: init + status hydrateren (in-memory by default; Postgres via DATABASE_URL).
+  // Accounts zijn platformbreed; daarna de gegevens van elke organisatie (eigen context).
+  if (!process.env.AIP_SECRET_KEY) {
+    const msg = "AIP_SECRET_KEY is niet gezet: geheimen van koppelingen worden versleuteld met een openbare standaardsleutel.";
+    if (process.env.NODE_ENV === "production") throw new Error(`${msg} Zet een eigen, geheime sleutel (bijv. openssl rand -base64 32).`);
+    // eslint-disable-next-line no-console
+    console.warn(`[beveiliging] ${msg} Alleen geschikt voor ontwikkeling.`);
+  }
+  if (!AUTH_ENABLED && process.env.NODE_ENV === "production") throw new Error("AIP_AUTH=off is niet toegestaan in productie");
   await persistence.init();
-  await audit.hydrate();
-  await deployments.hydrate();
-  await agentGroups.hydrate();
-  await engine.hydrate();
-  await registry.hydrate();
-  await settings.hydrate();
-  await approvals.hydrate();
-  await credentials.hydrate();
-  await broker.hydrate();
-  await datatables.hydrate();
-  await triggers.hydrate();
+  await accounts.hydrate();
+  await mailer.hydrate();
+  for (const org of accounts.orgIds()) await hydrateOrg(org);
 
   // JSON Schemas als bron van waarheid: laden en registreren voor validatie + OpenAPI.
   for (const file of readdirSync(SCHEMA_DIR).filter((f) => f.endsWith(".json"))) {
@@ -88,12 +93,18 @@ export async function buildServer() {
         { name: "files", description: "Bestandsmap per omgeving" },
         { name: "datatables", description: "Ingebouwde datatabellen per omgeving" },
         { name: "settings", description: "Platforminstellingen (o.a. vier-ogenprincipe)" },
-        { name: "events", description: "Event stream (SSE)" }
+        { name: "events", description: "Event stream (SSE)" },
+        { name: "auth", description: "Inloggen, aanmelden, wachtwoord vergeten" },
+        { name: "org", description: "Organisatie: accounts, rechten per omgeving, API-sleutels (beheerders)" },
+        { name: "admin", description: "Platformbeheer: alle organisaties en accounts (hoofdaccount)" }
       ]
     }
   });
   await app.register(swaggerUi, { routePrefix: "/docs" });
 
+  // Authenticatie + organisatiecontext vóór alle routes.
+  registerAuth(app);
+  await registerAuthRoutes(app);
   await registerRoutes(app);
   await registerAgentRoutes(app);
   await registerPlatformRoutes(app);
@@ -118,7 +129,7 @@ export async function buildServer() {
       httpUrl: `${host}/mcp`,
       tokenRequired: Boolean(mcpToken),
       allowApprovals,
-      stdio: { command: join(root, "node_modules", ".bin", "tsx"), args: [join(root, "src", "mcp", "stdio.ts")], env: { AIP_URL: host } },
+      stdio: { command: join(root, "node_modules", ".bin", "tsx"), args: [join(root, "src", "mcp", "stdio.ts")], env: { AIP_URL: host, ...(AUTH_ENABLED ? { AIP_API_KEY: "<API-sleutel van je organisatie>" } : {}) } },
       tools: ["list_processes", "get_process", "save_process", "edit_process", "design_process", "test_process", "run_process", "deploy_process", "list_runs", "get_run", "get_dashboard", "report_incident", "list_approvals", "get_settings", ...(allowApprovals ? ["decide_approval"] : []), "list_step_types", "list_triggers", "list_credentials", "list_queues", "publish_message", "create_queue", "list_datatables", "query_datatable", "insert_datatable_rows", "create_datatable"],
       resources: ["aip://schema/integration", "aip://processes/{name}"],
       prompts: ["integratie-bouwen"]
@@ -129,13 +140,18 @@ export async function buildServer() {
     url: "/mcp",
     schema: { hide: true },
     handler: async (req, reply) => {
-      if (mcpToken && req.headers.authorization !== `Bearer ${mcpToken}`) {
+      // Met accounts aan is /mcp al afgeschermd (API-sleutel of sessie, zie auth-hook);
+      // AIP_MCP_TOKEN geldt alleen als accounts uit staan.
+      if (!AUTH_ENABLED && mcpToken && req.headers.authorization !== `Bearer ${mcpToken}`) {
         return reply.code(401).send({ jsonrpc: "2.0", error: { code: -32001, message: "Ongeldig of ontbrekend MCP-token" }, id: null });
       }
       if (req.method !== "POST") {
         return reply.code(405).send({ jsonrpc: "2.0", error: { code: -32000, message: "Deze server is stateless: gebruik POST" }, id: null });
       }
-      const server = createMcpServer({ baseUrl: `http://127.0.0.1:${config.port}`, allowApprovals, user: String(req.headers["x-aip-user"] || "mcp-http") });
+      const fwd: Record<string, string> = {};
+      if (req.headers.authorization) fwd.authorization = String(req.headers.authorization);
+      if (req.headers.cookie) fwd.cookie = String(req.headers.cookie);
+      const server = createMcpServer({ baseUrl: `http://127.0.0.1:${config.port}`, allowApprovals, user: String(req.headers["x-aip-user"] || "mcp-http"), headers: fwd });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       reply.hijack();
       reply.raw.on("close", () => { void transport.close(); void server.close(); });
@@ -158,10 +174,10 @@ async function main() {
   const app = await buildServer();
   try {
     await app.listen({ port: config.port, host: config.host });
-    broker.start();
-    triggers.start();
+    for (const org of accounts.orgIds()) startOrg(org);
     app.log.info(`Platform draait — persistentie: ${persistence.kind} · engine: built-in · MCP: /mcp${mcpTokenInfo()}`);
     app.log.info(`GUI: http://localhost:${config.port}/app/  ·  Docs: /docs  ·  OpenAPI: /openapi.json`);
+    app.log.info(AUTH_ENABLED ? `Accounts: aan (${accounts.count()} accounts, ${accounts.orgIds().length} organisatie(s))${accounts.count() ? "" : " — open de GUI om het hoofdaccount aan te maken"}` : "Accounts: UIT (AIP_AUTH=off)");
   } catch (err) {
     app.log.error(err);
     process.exit(1);

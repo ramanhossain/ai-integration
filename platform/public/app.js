@@ -13,6 +13,7 @@ async function api(path, opts = {}) {
   }
   const r = await fetch(path, init);
   const body = await r.json().catch(() => ({}));
+  if (r.status === 401 && !path.startsWith("/api/v1/auth/") && window.AIP_AUTH) window.AIP_AUTH.expired();
   if (!r.ok) throw new Error(body.error || body.message || r.statusText);
   return body;
 }
@@ -25,7 +26,8 @@ function toast(msg, err) {
 }
 const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString("nl-NL") : "—");
 const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "medium" }) : "—");
-function who() { const el = document.getElementById("approver"); return (el && el.value.trim()) || "anoniem"; }
+// Ingelogde gebruiker; zonder accounts (AIP_AUTH=off) de gekozen testgebruiker.
+function who() { const me = window.AIP_ME; if (me && me.authEnabled && me.user) return me.user.email; const el = document.getElementById("approver"); return (el && el.value.trim()) || "anoniem"; }
 
 const ENVS = [
   { id: "dev", label: "DEV", name: "Development", color: "var(--env-dev)" },
@@ -51,8 +53,11 @@ function localGet(k) { try { return localStorage.getItem(k); } catch { return nu
 function localSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
 
 // ---------- omgevingswisselaar ----------
+// Omgevingen zonder toegang zijn uitgeschakeld; alleen-lezen krijgt een oogje.
+const envAccess = (id) => (window.AIP_AUTH ? window.AIP_AUTH.access(id) : "edit");
 function renderEnvs() {
-  $("#envs").innerHTML = ENVS.map((e) => `<button data-env="${e.id}" class="${S.env === e.id ? "on" : ""}" title="${e.name}"><span class="sw" style="background:${e.color}"></span>${e.label}</button>`).join("");
+  if (envAccess(S.env) === "none") { const first = ENVS.find((e) => envAccess(e.id) !== "none"); if (first) S.env = first.id; }
+  $("#envs").innerHTML = ENVS.map((e) => { const a = envAccess(e.id); return `<button data-env="${e.id}" class="${S.env === e.id ? "on" : ""}${a === "none" ? " noacc" : ""}" ${a === "none" ? "disabled" : ""} title="${e.name}${a === "none" ? " — geen toegang" : a === "view" ? " — alleen lezen" : ""}"><span class="sw" style="background:${e.color}"></span>${e.label}${a === "view" ? ' <span class="ro" aria-label="alleen lezen">👁</span>' : ""}</button>`; }).join("");
   document.querySelector(".top").style.setProperty("--env-color", envOf(S.env).color);
 }
 $("#envs").addEventListener("click", (e) => {
@@ -66,7 +71,6 @@ $("#envs").addEventListener("click", (e) => {
   else if (S.view === "files") go("files");
   else if (S.view !== "instance") render();
 });
-document.querySelectorAll("[data-who]").forEach((b) => b.addEventListener("click", () => ($("#approver").value = b.dataset.who)));
 
 // ---------- modal ----------
 function openModal(html) { $("#modal-box").className = "box"; $("#modal-box").innerHTML = html; $("#modal").classList.remove("hide"); }
@@ -150,6 +154,7 @@ const nameList = (keys) => `<ul class="nlist">${keys.slice(0, 12).map((k) => `<l
 
 // ---------- routing ----------
 function route() {
+  if (window.AIP_AUTH && !window.AIP_ME) return; // eerst inloggen
   const [view, ...rest] = (location.hash.replace(/^#/, "") || "dashboard").split("/");
   S.view = VIEWS[view] ? view : "dashboard";
   S.param = rest.length ? decodeURIComponent(rest.join("/")) : null;
@@ -1441,7 +1446,9 @@ function startEvents() {
 }
 
 // ---------- start (na het laden van alle scripts, zodat admin.js views kan registreren) ----------
-window.addEventListener("DOMContentLoaded", () => {
+// Eerst inloggen (auth.js); daarna de app starten.
+window.addEventListener("DOMContentLoaded", async () => {
+if (window.AIP_AUTH) await window.AIP_AUTH.ready;
 renderEnvs();
 refreshStatus();
 loadPluginList();

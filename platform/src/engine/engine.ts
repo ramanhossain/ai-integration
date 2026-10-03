@@ -5,6 +5,7 @@ import { getNode, RETRYABLE, type NodeContext, type StepDef } from "./nodes";
 import { deployments } from "../domain/deployments";
 import { persistence } from "../store";
 import { bus } from "../events/bus";
+import { scoped } from "../tenancy/context";
 
 // De workflow-engine: voert de stappen van een integratie deterministisch uit,
 // met retry en dead-letter-queue. Houdt run-records bij voor monitoring.
@@ -268,4 +269,4 @@ class Engine {
   }
 }
 
-export const engine = new Engine();
+export const engine = scoped("engine", () => new Engine());

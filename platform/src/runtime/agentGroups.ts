@@ -5,6 +5,7 @@ import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
 import type { Integration } from "../domain/types";
 import { deployments } from "../domain/deployments";
+import { scoped } from "../tenancy/context";
 
 // Omgevingsvarianten (agentgroepen): een omgeving (DEV/TEST/ACC/PROD)
 // bevat één of meer agentgroepen. Elke omgeving heeft een ingebouwde groep "Platform"
@@ -280,5 +281,5 @@ class AgentGroups {
   }
 }
 
-export const agentGroups = new AgentGroups();
+export const agentGroups = scoped("agentGroups", () => new AgentGroups());
 export const BUILTIN = builtinId;

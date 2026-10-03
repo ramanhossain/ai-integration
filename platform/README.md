@@ -91,6 +91,31 @@ Velden accepteren templates: `{{veld.pad}}`, `{{$now}}`, `{{$date}}`, `{{$uuid}}
 Externe stappen krijgen de retry-instellingen van het proces; daarna optioneel dead-letter.
 Zonder URL/koppeling worden HTTP, e-mail en Teams/Slack gesimuleerd (handig op DEV).
 
+## Accounts en organisaties (iPaaS)
+
+Het platform wordt aangeboden als iPaaS: elke klant heeft een eigen **organisatie** met volledig afgeschermde gegevens (processen, versies, koppelingen, queues, datatabellen, bestanden, triggers, uitvoeringen, goedkeuringen, audit log, agentgroepen), elk met DEV/TEST/ACC/PROD.
+
+- **Eerste start:** de GUI vraagt om het **hoofdaccount**. Bestaande gegevens horen bij de hoofdorganisatie (`default`).
+- **Aanmelden:** iedereen kan een organisatie aanmaken (uit te zetten in Platformbeheer of met `AIP_SIGNUP=off`); de aanmelder wordt beheerder.
+- **Gebruikers** (beheerder): accounts uitnodigen (mail met link, 72 uur geldig), rol beheerder/gebruiker, toegang **per omgeving**: geen / lezen / bewerken. Meerdere accounts per omgeving. Wachtwoordmail sturen, uitschakelen, verwijderen.
+- **API-sleutels** per organisatie (`Authorization: Bearer aip_…`) voor MCP, scripts en CI; voor MCP via stdio: `AIP_API_KEY`.
+- **Platformbeheer** (hoofdaccount): alle organisaties en accounts met aantal processen, laatst ingelogd en laatst actief; wachtwoord-vergeten-mail sturen; organisaties aanmaken/uitschakelen; aanmelden open/dicht; outbox van systeemmails.
+- **Wachtwoord vergeten:** mail met link (1 uur geldig). Mail via `AIP_SMTP_URL` (bijv. `smtps://user:pass@smtp.example.com:465`) en `AIP_MAIL_FROM`; zonder mailserver komen mails in de outbox (Platformbeheer) en het serverlog. Zet `AIP_PUBLIC_URL` voor de juiste links.
+- **Publieke endpoints per organisatie:** webhooks `/o/<organisatie>/hooks/<omgeving>/<pad>` en API-endpoints `/o/<organisatie>/apis/<omgeving>/<pad>` (hoofdorganisatie zonder `/o/…`).
+- **Beveiliging:** wachtwoorden met scrypt; sessies (HttpOnly-cookie, 14 dagen), reset-tokens en API-sleutels alleen als hash opgeslagen; max. 10 mislukte inlogpogingen per kwartier; indiener/goedkeurder/eigenaar is altijd de ingelogde gebruiker (vier-ogenprincipe met echte accounts).
+- **Ontwikkeling/tests zonder accounts:** `AIP_AUTH=off` (alles in de hoofdorganisatie, gebruiker via `x-aip-user`). `npm run test:integration` verwacht zo'n server; `npm run test:auth` test accounts en afscherming in-process.
+
+## Beveiliging
+
+- **Code-stap** draait in een eigen V8-isolate (`isolated-vm`): geen toegang tot Node, bestanden, netwerk of andere organisaties; geheugenlimiet (`AIP_CODE_MEMORY_MB`, standaard 64) en tijdslimiet. Vereist Node 24+.
+- **Uitgaand verkeer (SSRF):** HTTP-stappen, plugins, databases, brokers, FTP/SFTP, SMTP en MCP gaan door een egress-controle. Cloud-metadata en link-local zijn altijd geblokkeerd; intern netwerk/localhost alleen voor de hoofdorganisatie (`AIP_EGRESS_PRIVATE=allow|deny` om dat te wijzigen). Redirects worden per stap gecontroleerd. Zet bij hosting ook een egress-firewall (DNS-rebinding).
+- **Accounts:** scrypt-wachtwoorden, gelijke responstijd bij onbekende accounts, max. 10 inlogpogingen per kwartier, max. 3 resetmails per account per uur, max. 5 aanmeldingen per IP per uur. Resetlinks gebruiken `AIP_PUBLIC_URL` (zonder die variabele alleen een lokaal adres, nooit een willekeurige Host-header).
+- **API-sleutels** kunnen geen accounts of sleutels beheren.
+- **Headers:** CSP (geen inline scripts) voor de GUI, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Cache-Control: no-store` voor de API. Sessiecookie `HttpOnly`, `SameSite=Lax`, `Secure` achter HTTPS.
+- **Productie:** `NODE_ENV=production` weigert te starten zonder eigen `AIP_SECRET_KEY` of met `AIP_AUTH=off`. Let op: een andere `AIP_SECRET_KEY` maakt eerder versleutelde koppelingsgeheimen onleesbaar (opnieuw invullen).
+- **Webhooks** zijn standaard publiek; zet per trigger `auth: apikey` voor alles wat niet publiek hoort te zijn.
+- Afhankelijkheden: `npm audit --omit=dev` (laatste controle: 0 kwetsbaarheden).
+
 ## Versies
 
 Elk opslaan maakt een nieuwe versie op DEV, met optioneel een wijzigingsnotitie. Op de processenpagina opent het versienummer een keuzelijst met alle versies (datum, auteur, notitie, omgeving):
