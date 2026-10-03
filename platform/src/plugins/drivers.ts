@@ -1,4 +1,6 @@
 import type { OperationDef, PluginDef } from "./types";
+import { currentOrg } from "../tenancy/context";
+import { assertTargetsAllowed, safeFetch } from "../net/egress";
 
 // Drivers voor diensten die geen REST-API hebben (databases, message brokers, LDAP, IMAP, SSH)
 // of een eigen RPC-protocol (Odoo). Een operatie met `driver: "naam:actie"` komt hier uit.
@@ -352,7 +354,7 @@ const ssh: Driver = async (action, { params: p, values }) => {
 
 // ---------------------------------------------------------------- Odoo (JSON-RPC op /jsonrpc)
 async function odooRpc(url: string, service: string, method: string, args: unknown[]): Promise<unknown> {
-  const res = await fetch(`${url.replace(/\/$/, "")}/jsonrpc`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", method: "call", params: { service, method, args }, id: Date.now() }), signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await safeFetch(`${url.replace(/\/$/, "")}/jsonrpc`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", method: "call", params: { service, method, args }, id: Date.now() }), signal: AbortSignal.timeout(TIMEOUT_MS) });
   const d = (await res.json().catch(() => ({}))) as { result?: unknown; error?: { message?: string; data?: { message?: string } } };
   if (!res.ok || d.error) throw new Error(`Odoo: ${d.error?.data?.message || d.error?.message || res.status}`);
   return d.result;
@@ -360,11 +362,12 @@ async function odooRpc(url: string, service: string, method: string, args: unkno
 const odooUid = new Map<string, number>();
 const odoo: Driver = async (action, { params: p, values, credKey }) => {
   if (!values.url || !values.database || !values.user || !values.apiKey) throw new Error("Odoo: URL, database, gebruiker en API-key zijn nodig");
-  let uid = odooUid.get(credKey);
+  const uidKey = `${currentOrg()}:${credKey}`;
+  let uid = odooUid.get(uidKey);
   if (!uid) {
     uid = Number(await odooRpc(values.url, "common", "authenticate", [values.database, values.user, values.apiKey, {}]));
     if (!uid) throw new Error("Odoo: aanmelden mislukt (gebruiker of API-key onjuist)");
-    odooUid.set(credKey, uid);
+    odooUid.set(uidKey, uid);
   }
   const model = String(p.model || "res.partner");
   const call = (method: string, args: unknown[], kw: Record<string, unknown> = {}) => odooRpc(values.url, "object", "execute_kw", [values.database, uid, values.apiKey, model, method, args, kw]);
@@ -393,6 +396,7 @@ export async function runDriver(spec: string, c: DriverCtx): Promise<DriverResul
   const [name, action] = spec.split(":");
   const d = DRIVERS[name];
   if (!d) throw new Error(`Onbekende driver '${name}'`);
+  await assertTargetsAllowed(c.values as Record<string, unknown>);
   try { return await d(action, c); }
   catch (e) {
     const err = e as Error & { code?: string };

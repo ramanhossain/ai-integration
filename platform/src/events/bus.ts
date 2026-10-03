@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { scoped } from "../tenancy/context";
 
 // Centrale event-bus. Elke statuswijziging in het platform wordt hier gepubliceerd,
 // zodat agents, de GUI en externe systemen erop kunnen reageren (via SSE of, later,
@@ -26,4 +27,4 @@ class Bus extends EventEmitter {
   }
 }
 
-export const bus = new Bus();
+export const bus = scoped("bus", () => new Bus());

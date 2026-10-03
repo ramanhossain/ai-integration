@@ -6,12 +6,13 @@ import { executePlugin, exchangeCode, oauthAuthorizeUrl } from "../plugins/runti
 import { credentials } from "../connectors/credentials";
 import { ENVIRONMENTS, isEnv, type EnvName } from "../domain/environments";
 import { audit } from "../audit/auditLog";
+import { currentOrg, runInOrg } from "../tenancy/context";
 
 // Plugins (connectors): catalogus, definities, uitvoeren/testen en OAuth2-verbinden.
 
 const publicBase = (req: FastifyRequest) => (process.env.AIP_PUBLIC_URL || `${req.protocol}://${req.headers.host}`).replace(/\/$/, "");
 export const oauthRedirectUri = (req: FastifyRequest) => `${publicBase(req)}/api/v1/oauth/callback`;
-const states = new Map<string, { credential: string; env: EnvName; plugin: string; at: number; by: string }>();
+const states = new Map<string, { credential: string; env: EnvName; plugin: string; at: number; by: string; org: string }>();
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export async function registerPluginRoutes(app: FastifyInstance): Promise<void> {
@@ -75,7 +76,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     try { values = credentials.resolve(credential, env).values; } catch (err) { return reply.code(400).type("text/html").send(`<p>${esc((err as Error).message)}. Vul eerst Client ID en Client secret in voor ${env.toUpperCase()}.</p>`); }
     const state = randomBytes(18).toString("base64url");
     for (const [k, v] of states) if (Date.now() - v.at > 600000) states.delete(k);
-    states.set(state, { credential, env, plugin: def.id, at: Date.now(), by: String(req.headers["x-aip-user"] || "gebruiker") });
+    states.set(state, { credential, env, plugin: def.id, at: Date.now(), by: String(req.headers["x-aip-user"] || "gebruiker"), org: currentOrg() });
     try { return reply.redirect(oauthAuthorizeUrl(def, values, oauthRedirectUri(req), state)); }
     catch (err) { return reply.code(400).type("text/html").send(`<p>${esc((err as Error).message)}</p>`); }
   });
@@ -89,12 +90,15 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     states.delete(req.query.state!);
     if (req.query.error) return page(false, `${req.query.error}: ${req.query.error_description || ""}`);
     const def = plugins.get(st.plugin)!;
-    try {
-      const values = credentials.resolve(st.credential, st.env).values;
-      const patch = await exchangeCode(def, values, String(req.query.code || ""), oauthRedirectUri(req));
-      credentials.patchValues(st.credential, st.env, patch, st.by);
-      audit.append({ actor: st.by, event: "credential.connected", subject: st.credential, data: { plugin: def.id, env: st.env } });
-      return page(true, `${def.name} is verbonden met koppeling '${st.credential}' op ${st.env.toUpperCase()}.`);
-    } catch (err) { return page(false, (err as Error).message); }
+    // De callback komt van de dienst (zonder sessie): werk in de organisatie van de aanvraag.
+    return runInOrg(st.org, async () => {
+      try {
+        const values = credentials.resolve(st.credential, st.env).values;
+        const patch = await exchangeCode(def, values, String(req.query.code || ""), oauthRedirectUri(req));
+        credentials.patchValues(st.credential, st.env, patch, st.by);
+        audit.append({ actor: st.by, event: "credential.connected", subject: st.credential, data: { plugin: def.id, env: st.env } });
+        return page(true, `${def.name} is verbonden met koppeling '${st.credential}' op ${st.env.toUpperCase()}.`);
+      } catch (err) { return page(false, (err as Error).message); }
+    });
   });
 }

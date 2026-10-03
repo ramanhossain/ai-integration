@@ -1,5 +1,4 @@
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
-import vm from "node:vm";
 
 // ---------- CSV ----------
 // RFC 4180-achtig: velden tussen dubbele quotes mogen scheidingstekens, quotes ("") en regeleinden bevatten.
@@ -56,30 +55,44 @@ export function xmlBuild(obj: unknown, root?: string): string {
 }
 
 // ---------- Code (JavaScript) ----------
-// Draait gebruikerscode in een aparte V8-context met tijdslimiet. Beschikbaar:
-// `input` (kopie van het bericht, ook als `$json`), `env`, `console.log`.
-// Let op: node:vm is géén beveiligingsgrens; alleen beheerders mogen code-stappen schrijven.
+// Gebruikerscode draait in een eigen V8-isolate (isolated-vm): geen toegang tot Node,
+// het bestandssysteem, het netwerk of de gegevens van andere organisaties; met
+// geheugen- en tijdslimiet. Alleen JSON gaat erin en eruit. Beschikbaar in de code:
+// `input` (kopie van het bericht, ook als `$json`), `env` en `console.log`.
+// (node:vm is géén beveiligingsgrens en wordt daarom niet gebruikt.)
+const CODE_MEMORY_MB = Number(process.env.AIP_CODE_MEMORY_MB || 64);
 export async function runCode(code: string, input: Record<string, unknown>, env: string, timeoutMs = 2000): Promise<{ result: Record<string, unknown>; logs: string[] }> {
-  const logs: string[] = [];
-  const copy = JSON.parse(JSON.stringify(input ?? {}));
-  const sandbox: Record<string, unknown> = {
-    input: copy,
-    $json: copy,
-    env,
-    console: { log: (...a: unknown[]) => logs.push(a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" ")) },
-    JSON, Math, Date, Number, String, Boolean, Array, Object, RegExp, parseInt, parseFloat, isNaN
-  };
-  const ctx = vm.createContext(sandbox, { codeGeneration: { strings: false, wasm: false } });
-  const script = new vm.Script(`(async () => {\n${code}\n})()`, { filename: "code-stap.js" });
-  const pending = script.runInContext(ctx, { timeout: timeoutMs }) as Promise<unknown>;
-  const out = await Promise.race([
-    pending,
-    new Promise((_, rej) => setTimeout(() => rej(new Error(`Code-stap duurde langer dan ${timeoutMs} ms`)), timeoutMs))
-  ]);
-  const result = out === undefined ? (sandbox.input as Record<string, unknown>) : out;
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
-    return { result: { ...copy, result: out }, logs };
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const ivm = require("isolated-vm") as typeof import("isolated-vm");
+  const isolate = new ivm.Isolate({ memoryLimit: CODE_MEMORY_MB });
+  try {
+    const context = await isolate.createContext();
+    const jail = context.global;
+    await jail.set("__in", JSON.stringify(input ?? {}));
+    await jail.set("__env", String(env));
+    const wrapped = `(async () => {
+      const __logs = [];
+      const console = { log: (...a) => { if (__logs.length < 200) __logs.push(a.map((x) => typeof x === "string" ? x : JSON.stringify(x)).join(" ").slice(0, 2000)); } };
+      const input = JSON.parse(__in); const $json = input; const env = __env;
+      const __out = await (async () => {\n${code}\n})();
+      const result = __out === undefined ? input : __out;
+      return JSON.stringify({ result, logs: __logs });
+    })()`;
+    const script = await isolate.compileScript(wrapped, { filename: "code-stap.js" });
+    const raw = await Promise.race([
+      script.run(context, { timeout: timeoutMs, promise: true, copy: true }) as Promise<string>,
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`Code-stap duurde langer dan ${timeoutMs} ms`)), timeoutMs + 50))
+    ]);
+    const parsed = JSON.parse(String(raw ?? "{}")) as { result: unknown; logs: string[] };
+    const out = parsed.result;
+    if (!out || typeof out !== "object" || Array.isArray(out)) return { result: { ...JSON.parse(JSON.stringify(input ?? {})), result: out }, logs: parsed.logs || [] };
+    return { result: out as Record<string, unknown>, logs: parsed.logs || [] };
+  } catch (err) {
+    const msg = (err as Error).message || String(err);
+    if (/timed out/i.test(msg)) throw new Error(`Code-stap duurde langer dan ${timeoutMs} ms`);
+    if (/memory limit/i.test(msg) || isolate.isDisposed) throw new Error(`Code-stap gebruikte meer dan ${CODE_MEMORY_MB} MB geheugen`);
+    throw err;
+  } finally {
+    if (!isolate.isDisposed) isolate.dispose();
   }
-  // Resultaat terugzetten naar een gewoon object uit de hoofdcontext.
-  return { result: JSON.parse(JSON.stringify(result)), logs };
 }

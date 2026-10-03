@@ -13,6 +13,7 @@ import { persistence } from "../store";
 import { bus } from "../events/bus";
 import { audit } from "../audit/auditLog";
 import { parseCron } from "./cron";
+import { scoped, orgPathPrefix } from "../tenancy/context";
 
 // Triggers draaien per omgeving waar een proces gedeployed is (een
 // proces op PROD reageert op de PROD-trigger met de PROD-koppelingen). De manager
@@ -326,7 +327,7 @@ class TriggerManager {
     return {
       openapi: "3.0.3",
       info: { title: `AIP API's — ${env.toUpperCase()}`, version: "1", description: "Automatisch gegenereerd uit processen met een API-endpoint-trigger." },
-      servers: [{ url: `${baseUrl}/apis/${env}` }],
+      servers: [{ url: `${baseUrl}${orgPathPrefix()}/apis/${env}` }],
       paths,
       components: secured ? { securitySchemes: { apiKey: { type: "apiKey", in: "header", name: "x-api-key" } } } : {}
     };
@@ -361,7 +362,7 @@ class TriggerManager {
           config: trig,
           paused: this.paused.has(key),
           running: Boolean(a) || trig.type === "webhook" || trig.type === "api",
-          url: trig.type === "webhook" ? `${baseUrl}/hooks/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : trig.type === "api" ? `${String(trig.method || "GET").toUpperCase()} ${baseUrl}/apis/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : undefined,
+          url: trig.type === "webhook" ? `${baseUrl}${orgPathPrefix()}/hooks/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : trig.type === "api" ? `${String(trig.method || "GET").toUpperCase()} ${baseUrl}${orgPathPrefix()}/apis/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : undefined,
           nextAt: a?.nextAt,
           lastFiredAt: a?.lastFiredAt ?? wh?.lastFiredAt,
           lastRunId: a?.lastRunId ?? wh?.lastRunId,
@@ -376,4 +377,4 @@ class TriggerManager {
   }
 }
 
-export const triggers = new TriggerManager();
+export const triggers = scoped("triggers", () => new TriggerManager());

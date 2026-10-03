@@ -6,6 +6,7 @@ import { bus } from "../events/bus";
 import { execute } from "./executor";
 import { persistence } from "../store";
 import { settings } from "../domain/settings";
+import { scoped } from "../tenancy/context";
 
 // De approval-engine is het hart van de Human Approval Layer.
 // - GREEN  : direct auto-approved en uitgevoerd.
@@ -150,4 +151,4 @@ export class ApprovalEngine {
   }
 }
 
-export const approvals = new ApprovalEngine();
+export const approvals = scoped("approvals", () => new ApprovalEngine());

@@ -7,6 +7,8 @@ import { z } from "zod";
 // alleen als AIP_MCP_ALLOW_APPROVALS=true (standaard uit: een AI stelt voor, een mens beslist).
 
 export interface McpOptions {
+  // Doorgegeven aan de platform-API (API-sleutel of sessie van de aanroeper).
+  headers?: Record<string, string>;
   baseUrl: string; // REST-API van het platform
   allowApprovals: boolean;
   user: string; // wordt als actor/proposedBy vastgelegd in het audit log
@@ -28,7 +30,7 @@ export function createMcpServer(opts: McpOptions): McpServer {
   async function api(method: string, path: string, body?: unknown): Promise<any> {
     const res = await fetch(opts.baseUrl + path, {
       method,
-      headers: { "content-type": "application/json", "x-aip-user": opts.user },
+      headers: { "content-type": "application/json", "x-aip-user": opts.user, ...(opts.headers || {}) },
       body: body === undefined ? undefined : JSON.stringify(body)
     });
     const text = await res.text();

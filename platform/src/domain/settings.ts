@@ -1,6 +1,7 @@
 import { persistence } from "../store";
 import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
+import { scoped } from "../tenancy/context";
 
 // Platforminstellingen (persistent). Wijzigingen komen in het audit log.
 
@@ -59,4 +60,4 @@ class SettingsStore {
   }
 }
 
-export const settings = new SettingsStore();
+export const settings = scoped("settings", () => new SettingsStore());

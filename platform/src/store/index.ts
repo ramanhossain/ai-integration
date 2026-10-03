@@ -3,6 +3,7 @@ import { MemoryDriver } from "./memory";
 import { PostgresDriver } from "./postgres";
 import { FileDriver } from "./file";
 import { join } from "node:path";
+import { scopeCollection } from "../tenancy/context";
 
 // Kiest de driver op basis van DATABASE_URL. Write-through is fire-and-forget met
 // foutlogging, zodat de (synchrone) engine-reads eenvoudig blijven; reads komen uit
@@ -32,13 +33,14 @@ class Persistence {
 
   async loadAll(collection: string): Promise<Array<{ id: string; doc: unknown }>> {
     if (!this.ready) return [];
-    return this.driver.loadAll(collection);
+    return this.driver.loadAll(scopeCollection(collection));
   }
 
   // Fire-and-forget schrijven; fouten worden gelogd maar blokkeren de engine niet.
   put(collection: string, id: string, doc: unknown): void {
     if (!this.ready) return;
-    this.driver.put(collection, id, doc).catch((err) => {
+    const col = scopeCollection(collection);
+    this.driver.put(col, id, doc).catch((err) => {
       // eslint-disable-next-line no-console
       console.error(`[persistence] put ${collection}/${id} faalde:`, (err as Error).message);
     });
@@ -47,7 +49,8 @@ class Persistence {
   // Fire-and-forget verwijderen.
   delete(collection: string, id: string): void {
     if (!this.ready) return;
-    this.driver.delete(collection, id).catch((err) => {
+    const col = scopeCollection(collection);
+    this.driver.delete(col, id).catch((err) => {
       // eslint-disable-next-line no-console
       console.error(`[persistence] delete ${collection}/${id} faalde:`, (err as Error).message);
     });

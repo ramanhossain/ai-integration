@@ -4,6 +4,7 @@ import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
 import { persistence } from "../store";
 import { deployments } from "./deployments";
+import { scoped } from "../tenancy/context";
 
 // In-memory registry (MVP). Later: Postgres. Houdt de door mensen én machines
 // opvraagbare toestand bij: integraties, incidenten en security-findings.
@@ -120,4 +121,4 @@ class Registry {
   }
 }
 
-export const registry = new Registry();
+export const registry = scoped("registry", () => new Registry());

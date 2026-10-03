@@ -230,41 +230,46 @@ export async function registerConnectorRoutes(app: FastifyInstance): Promise<voi
     }
   );
 
-  // ---------- API-endpoint-trigger: /apis/<omgeving>/<pad> (+ openapi.json per omgeving) ----------
-  app.route<{ Params: { env: string; "*": string } }>({
-    method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    url: "/apis/:env/*",
-    schema: { hide: true },
-    handler: async (req, reply) => {
-      if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
-      if (req.params["*"] === "openapi.json" && req.method === "GET") return triggers.openApi(req.params.env, baseUrl(req));
-      try {
-        const r = await triggers.handleApi(req.params.env, req.params["*"], { method: req.method, headers: req.headers as Record<string, unknown>, query: req.query as Record<string, unknown>, body: req.body });
-        return reply.code(r.status).send(r.body);
-      } catch (e) {
-        return reply.code(500).send({ error: (e as Error).message });
+  // Publieke endpoints: zonder prefix voor de hoofdorganisatie, /o/<org>/… voor andere organisaties
+  // (de organisatie wordt in de auth-hook uit de URL bepaald).
+  for (const pre of ["", "/o/:org"]) {
+    // ---------- API-endpoint-trigger: /apis/<omgeving>/<pad> (+ openapi.json per omgeving) ----------
+    app.route<{ Params: { env: string; "*": string; org?: string } }>({
+      method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      url: `${pre}/apis/:env/*`,
+      schema: { hide: true },
+      handler: async (req, reply) => {
+        if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
+        if (req.params["*"] === "openapi.json" && req.method === "GET") return triggers.openApi(req.params.env, baseUrl(req));
+        try {
+          const r = await triggers.handleApi(req.params.env, req.params["*"], { method: req.method, headers: req.headers as Record<string, unknown>, query: req.query as Record<string, unknown>, body: req.body });
+          return reply.code(r.status).send(r.body);
+        } catch (e) {
+          return reply.code(500).send({ error: (e as Error).message });
+        }
       }
-    }
-  });
+    });
 
-  // ---------- webhook-trigger: /hooks/<omgeving>/<pad> ----------
-  app.route<{ Params: { env: string; "*": string } }>({
-    method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    url: "/hooks/:env/*",
-    schema: { hide: true },
-    handler: async (req, reply) => {
-      if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
-      try {
-        const r = await triggers.handleWebhook(req.params.env, req.params["*"], {
-          method: req.method,
-          headers: req.headers as Record<string, unknown>,
-          query: req.query as Record<string, unknown>,
-          body: req.body
-        });
-        return reply.code(r.status).send(r.body);
-      } catch (e) {
-        return reply.code(500).send({ error: (e as Error).message });
+    // ---------- webhook-trigger: /hooks/<omgeving>/<pad> ----------
+    app.route<{ Params: { env: string; "*": string; org?: string } }>({
+      method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      url: `${pre}/hooks/:env/*`,
+      schema: { hide: true },
+      handler: async (req, reply) => {
+        if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
+        try {
+          const r = await triggers.handleWebhook(req.params.env, req.params["*"], {
+            method: req.method,
+            headers: req.headers as Record<string, unknown>,
+            query: req.query as Record<string, unknown>,
+            body: req.body
+          });
+          return reply.code(r.status).send(r.body);
+        } catch (e) {
+          return reply.code(500).send({ error: (e as Error).message });
+        }
       }
-    }
-  });
+    });
+
+  }
 }

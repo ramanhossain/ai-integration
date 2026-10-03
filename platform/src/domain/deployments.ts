@@ -4,6 +4,7 @@ import { persistence } from "../store";
 import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
 import { settings } from "./settings";
+import { scoped } from "../tenancy/context";
 
 // Beheert versies en deployments. Elke integratie krijgt een oplopend versienummer
 // bij elke wijziging. Bewerken kan ALLEEN op DEV: opslaan maakt altijd een nieuwe versie
@@ -231,4 +232,4 @@ class Deployments {
   }
 }
 
-export const deployments = new Deployments();
+export const deployments = scoped("deployments", () => new Deployments());

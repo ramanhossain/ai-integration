@@ -4,6 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { EnvName } from "../domain/environments";
 import { credentials } from "./credentials";
+import { safeFetch, assertHostAllowed, assertTargetsAllowed, assertUrlAllowed } from "../net/egress";
 
 // ---------- HTTP-authenticatie via een koppeling ----------
 export function authHeaders(env: EnvName, credentialName?: string): Record<string, string> {
@@ -26,6 +27,7 @@ export async function sendMail(env: EnvName, credentialName: string | undefined,
     return { simulated: true, messageId: info.messageId, preview: JSON.parse(String(info.message)) };
   }
   const { values } = credentials.resolve(credentialName, env);
+  await assertHostAllowed(values.host);
   const t = nodemailer.createTransport({
     host: values.host,
     port: Number(values.port || 587),
@@ -42,6 +44,7 @@ export async function sqlQuery(env: EnvName, credentialName: string, query: stri
   if (!credentialName) throw new Error("SQL: kies een PostgreSQL-koppeling");
   const { type, values } = credentials.resolve(credentialName, env);
   if (type !== "postgres") throw new Error(`Koppeling '${credentialName}' is geen PostgreSQL-koppeling`);
+  await assertTargetsAllowed({ connectionString: values.connectionString });
   let pool = pools.get(values.connectionString);
   if (!pool) {
     pool = new Pool({ connectionString: values.connectionString, max: 4, connectionTimeoutMillis: 10000 });
@@ -59,7 +62,7 @@ export async function notify(env: EnvName, cfg: { kind: string; url?: string; cr
     ? { "@type": "MessageCard", "@context": "https://schema.org/extensions", summary: cfg.title || "AIP", title: cfg.title, text: cfg.text }
     : { text: cfg.title ? `*${cfg.title}*\n${cfg.text}` : cfg.text };
   if (!url) return { simulated: true, kind: cfg.kind, body };
-  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const res = await safeFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`${cfg.kind} webhook -> ${res.status}`);
   return { simulated: false, kind: cfg.kind, status: res.status };
 }
@@ -72,6 +75,7 @@ export async function mcpCall(env: EnvName, cfg: { credential?: string; url?: st
     url = values.url; token = values.token;
   }
   if (!url) throw new Error("MCP: geen server-URL (kies een MCP-koppeling of vul een URL in)");
+  await assertUrlAllowed(url);
   if (!cfg.tool) throw new Error("MCP: geen toolnaam");
   const client = new Client({ name: "aip-platform", version: "0.1.0" });
   const transport = new StreamableHTTPClientTransport(new URL(url), token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : undefined);

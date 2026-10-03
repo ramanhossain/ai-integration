@@ -5,6 +5,8 @@ import SftpClient from "ssh2-sftp-client";
 import { Readable, Writable } from "node:stream";
 import type { EnvName } from "../domain/environments";
 import { credentials } from "./credentials";
+import { currentOrg, DEFAULT_ORG } from "../tenancy/context";
+import { assertHostAllowed } from "../net/egress";
 
 // Eén interface voor lokale bestanden en FTP/FTPS/SFTP, zodat stappen en triggers
 // (map-watcher, FTP-poller) dezelfde code gebruiken.
@@ -31,7 +33,8 @@ export interface FileSystem {
 export const FILES_ROOT = resolve(process.env.AIP_FILES_ROOT ?? join(__dirname, "..", "..", "data", "files"));
 
 export function envRoot(env: EnvName): string {
-  return join(FILES_ROOT, env);
+  const org = currentOrg();
+  return org === DEFAULT_ORG ? join(FILES_ROOT, env) : join(FILES_ROOT, "orgs", org, env);
 }
 
 function safe(env: EnvName, p: string): string {
@@ -77,6 +80,7 @@ class FtpFs implements FileSystem {
   private client = new FtpClient(20000);
   constructor(private cfg: Record<string, string>, private secure: boolean) {}
   async connect(): Promise<this> {
+    await assertHostAllowed(this.cfg.host);
     await this.client.access({
       host: this.cfg.host,
       port: Number(this.cfg.port || 21),
@@ -120,6 +124,7 @@ class SftpFs implements FileSystem {
   private client = new SftpClient();
   constructor(private cfg: Record<string, string>) {}
   async connect(): Promise<this> {
+    await assertHostAllowed(this.cfg.host);
     await this.client.connect({
       host: this.cfg.host,
       port: Number(this.cfg.port || 22),

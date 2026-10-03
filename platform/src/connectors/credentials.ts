@@ -3,6 +3,7 @@ import { ENVIRONMENTS, type EnvName } from "../domain/environments";
 import { persistence } from "../store";
 import { audit } from "../audit/auditLog";
 import { bus } from "../events/bus";
+import { scoped } from "../tenancy/context";
 
 // Koppelingen (credentials) met waarden per omgeving. Dezelfde stap gebruikt op DEV andere
 // servers/wachtwoorden dan op PROD. Geheime velden worden versleuteld opgeslagen
@@ -174,4 +175,4 @@ class Credentials {
   }
 }
 
-export const credentials = new Credentials();
+export const credentials = scoped("credentials", () => new Credentials());

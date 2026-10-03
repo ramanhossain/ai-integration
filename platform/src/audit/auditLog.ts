@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { AuditEntry } from "../domain/types";
 import { persistence } from "../store";
+import { scoped } from "../tenancy/context";
 
 // Append-only audit log met hash-keten. Elke entry bevat de hash van de vorige,
 // zodat achteraf wijzigen detecteerbaar is. Machine-verifieerbaar via verify().
@@ -66,4 +67,4 @@ export class AuditLog {
   }
 }
 
-export const audit = new AuditLog();
+export const audit = scoped("audit", () => new AuditLog());

@@ -1533,7 +1533,7 @@
         F.select("auth", "Beveiliging", t.auth || "none", [["none", "geen"], ["apikey", "API-key (header)"]], "", true) +
         (t.auth === "apikey" ? F.cred("API-key (koppeling)", t.credential, ["api-key"], ctx, "Per omgeving een andere sleutel.") : "") +
         F.select("response", "Antwoord", t.response || "result", [["result", "wachten op resultaat (200/500)"], ["accepted", "direct 202 Accepted"]], "Een proces kan zelf antwoorden met een veld <code>_response: { status, body }</code>.") +
-        `<label>URL per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${esc(location.origin)}/hooks/${e}/${esc(path)}</code></div>`).join("")}</div>` +
+        `<label>URL per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${esc(location.origin)}${esc((window.AIP_ME && window.AIP_ME.org && window.AIP_ME.org.pathPrefix) || "")}/hooks/${e}/${esc(path)}</code></div>`).join("")}</div>` +
         hintHtml("Actief op elke omgeving waar deze versie gedeployed is.");
     } else if (t.type === "api") {
       const path = String(t.path || `${String(name).toLowerCase()}/{id}`).replace(/^\//, "");

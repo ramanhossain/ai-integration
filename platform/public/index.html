@@ -630,6 +630,45 @@
   .vm-mi-t { display:flex; flex-direction:column; min-width:0; flex:1; font-size:.78rem; color:var(--muted); }
   .vm-mi-n { color:var(--fg); font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .vm-mi-e { display:flex; gap:3px; }
+  /* Accounts: inlogschermen */
+  body.auth-open .shell, body.auth-open .askbar, body.auth-open .dock { display:none !important; }
+  .auth { position:fixed; inset:0; z-index:60; overflow:auto; display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px 16px; background:radial-gradient(1200px 600px at 20% 0%, #2d6cdf33, transparent), radial-gradient(900px 500px at 90% 100%, #7c3aed33, transparent), var(--bg); }
+  .au-card { width:min(420px,100%); background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 20px 60px rgba(15,31,61,.18); padding:26px 28px; }
+  .au-card h1 { font-size:1.35rem; margin:14px 0 6px; }
+  .au-card label { display:block; font-size:.78rem; font-weight:600; color:var(--muted); margin:12px 0 4px; }
+  .au-card .muted { font-size:.88rem; margin:0 0 4px; }
+  .au-brand { display:flex; align-items:center; gap:10px; } .au-brand .mark { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; background:linear-gradient(135deg,#2d6cdf,#7c3aed); color:#fff; font-size:1.2rem; }
+  .au-brand b { display:block; line-height:1.1; } .au-brand small { color:var(--muted); font-size:.76rem; }
+  .au-go { width:100%; justify-content:center; margin-top:16px; padding:10px 14px; }
+  .au-links { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:14px; font-size:.84rem; }
+  .au-who { display:flex; flex-direction:column; border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-top:10px; font-size:.86rem; } .au-who span { color:var(--muted); }
+  .au-card { margin-top:auto; } .au-foot { color:var(--faint); font-size:.76rem; margin-bottom:auto; }
+  /* Gebruikersmenu */
+  .who { position:relative; }
+  .top .who .um-btn { display:flex; align-items:center; gap:8px; background:transparent; border:1px solid rgba(255,255,255,.18); border-radius:10px; padding:4px 10px 4px 4px; color:inherit; cursor:pointer; font:inherit; }
+  .top .who .um-btn:hover { background:rgba(255,255,255,.08); }
+  .um-av { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:linear-gradient(135deg,#2d6cdf,#7c3aed); color:#fff; font-weight:700; font-size:.8rem; }
+  .um-t { display:flex; flex-direction:column; text-align:left; line-height:1.15; } .um-t b { font-size:.82rem; } .um-t small { font-size:.7rem; opacity:.7; }
+  @media (max-width:760px){ .um-t { display:none; } }
+  .um-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:40; width:260px; background:var(--surface); color:var(--fg); border:1px solid var(--border-2); border-radius:10px; box-shadow:0 14px 40px rgba(15,31,61,.25); padding:6px; }
+  .um-h { display:flex; flex-direction:column; padding:6px 8px 8px; border-bottom:1px solid var(--border); margin-bottom:4px; font-size:.84rem; } .um-h span { color:var(--muted); font-size:.76rem; }
+  .top .who .um-menu a, .top .who .um-menu button { display:block; width:100%; text-align:left; padding:7px 8px; border-radius:6px; color:var(--fg); text-decoration:none; background:none; border:0; font:inherit; font-size:.86rem; cursor:pointer; }
+  .top .who .um-menu a:hover, .top .who .um-menu button:hover { background:var(--surface-2); }
+  .envs button.noacc { opacity:.35; cursor:not-allowed; }
+  .envs button .ro { font-size:.7rem; }
+  /* Accountbeheer */
+  .acc-sel { font-size:.76rem; padding:3px 6px; width:auto; }
+  .acc-grid { display:grid; grid-template-columns:repeat(4,minmax(96px,1fr)); gap:4px; }
+  .acc-cell { display:flex; flex-direction:column; gap:3px; border:1px solid var(--border); border-radius:7px; padding:4px 6px; background:var(--surface); }
+  .acc-cell .env { align-self:flex-start; font-size:.62rem; }
+  .acc-sel2 { border:0; background:transparent; font:inherit; font-size:.78rem; font-weight:600; color:var(--fg); padding:0; cursor:pointer; }
+  .acc-sel2:disabled { cursor:default; color:var(--muted); }
+  .acc-cell.a-none { background:var(--surface-2); } .acc-cell.a-none .acc-sel2 { color:var(--faint); }
+  .acc-cell.a-view .acc-sel2 { color:var(--accent-fg); } .acc-cell.a-edit .acc-sel2 { color:#146c3a; }
+  .st-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .st-dot.on { background:var(--green); } .st-dot.inv { background:var(--amber); } .st-dot.off { background:var(--faint); }
+  .key-once { font-family:var(--mono); font-size:.82rem; word-break:break-all; background:var(--surface-2); border:1px dashed var(--border-2); border-radius:8px; padding:10px; }
+  .kpis-4 { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:14px; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 </style>
 </head>
 <body>
@@ -641,11 +680,7 @@
     <div class="spacer"></div>
     <span class="pill" id="store-pill">…</span>
     <span class="pill" id="claude-pill">…</span>
-    <div class="who">
-      <span>gebruiker</span>
-      <input id="approver" value="alice" aria-label="Gebruiker (goedkeurder)">
-      <button data-who="alice">alice</button><button data-who="bob">bob</button>
-    </div>
+    <div class="who" id="who"></div>
   </header>
 
   <aside class="side">
@@ -666,6 +701,8 @@
     <a href="#credentials" data-nav="credentials" title="Koppelingen"><span class="ic">🔑</span><span class="lbl">Koppelingen</span></a>
     <a href="#approvals" data-nav="approvals" title="Goedkeuringen"><span class="ic">✓</span><span class="lbl">Goedkeuringen</span><span class="badge hide" id="ap-badge">0</span></a>
     <a href="#audit" data-nav="audit" title="Audit log"><span class="ic">⛓</span><span class="lbl">Audit log</span></a>
+    <a href="#users" data-nav="users" data-role="admin" class="hide" title="Gebruikers"><span class="ic">👥</span><span class="lbl">Gebruikers</span></a>
+    <a href="#platform" data-nav="platform" data-role="super" class="hide" title="Platformbeheer"><span class="ic">◈</span><span class="lbl">Platformbeheer</span></a>
     <a href="#settings" data-nav="settings" title="Instellingen"><span class="ic">⚙</span><span class="lbl">Instellingen</span></a>
     <h6>API &amp; machines</h6>
     <a href="#mcp" data-nav="mcp" title="MCP-server"><span class="ic">⌁</span><span class="lbl">MCP-server</span></a>
@@ -706,15 +743,18 @@
   <input id="askbar-input" autocomplete="off" placeholder="Vraag de AI-assistent…" aria-label="Vraag de AI-assistent">
   <button type="submit" class="askbar-go" aria-label="Versturen" title="Versturen" data-ico="send"></button>
 </form>
+<div class="auth hide" id="auth-screen"></div>
 <div class="modal hide" id="modal"><div class="box" id="modal-box"></div></div>
 <div class="toast" id="toast"></div>
 <script src="/app/i18n/en.js"></script>
 <script src="/app/i18n.js"></script>
 <script src="/app/icons.js"></script>
+<script src="/app/auth.js"></script>
 <script src="/app/editor.js"></script>
 <script src="/app/app.js"></script>
 <script src="/app/admin.js"></script>
 <script src="/app/versions.js"></script>
+<script src="/app/accounts.js"></script>
 <script src="/app/infra.js"></script>
 <script src="/app/plugins.js"></script>
 <script src="/app/assistant.js"></script>

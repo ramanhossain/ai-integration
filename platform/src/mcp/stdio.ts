@@ -9,7 +9,9 @@ async function main() {
   const server = createMcpServer({
     baseUrl,
     allowApprovals: process.env.AIP_MCP_ALLOW_APPROVALS === "true",
-    user: process.env.AIP_MCP_USER ?? "mcp-stdio"
+    user: process.env.AIP_MCP_USER ?? "mcp-stdio",
+    // Met accounts aan: een API-sleutel van de organisatie (Beheer → Gebruikers → API-sleutels).
+    headers: process.env.AIP_API_KEY ? { authorization: `Bearer ${process.env.AIP_API_KEY}` } : undefined
   });
   await server.connect(new StdioServerTransport());
   process.stderr.write(`[aip-mcp] verbonden via stdio met ${baseUrl}\n`);

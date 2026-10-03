@@ -1,5 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { PluginDef } from "./types";
+import { currentOrg } from "../tenancy/context";
+import { safeFetch } from "../net/egress";
 
 // Eigen ondertekening of sessies voor diensten die niet met een vaste header/token werken
 // (auth.type "custom"). Een signer mag headers aanvullen en de URL aanpassen (bv. een base-ID invullen).
@@ -14,6 +16,7 @@ const need = (v: Record<string, string>, ...keys: string[]) => { for (const k of
 // Kortlevende sessietokens per koppeling/omgeving (FileMaker, SeaTable, Wekan, Venafi).
 const sessions = new Map<string, { exp: number; data: Record<string, string> }>();
 async function session(key: string, ttlMs: number, login: () => Promise<Record<string, string>>): Promise<Record<string, string>> {
+  key = `${currentOrg()}:${key}`;
   const hit = sessions.get(key);
   if (hit && hit.exp > Date.now()) return hit.data;
   const data = await login();
@@ -21,7 +24,7 @@ async function session(key: string, ttlMs: number, login: () => Promise<Record<s
   return data;
 }
 async function postJson(url: string, body: unknown, headers: Record<string, string> = {}, form = false): Promise<Record<string, unknown>> {
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     method: "POST",
     headers: { accept: "application/json", "content-type": form ? "application/x-www-form-urlencoded" : "application/json", ...headers },
     body: form ? new URLSearchParams(body as Record<string, string>).toString() : body === undefined ? undefined : JSON.stringify(body),
@@ -96,7 +99,7 @@ export const SIGNERS: Record<string, Signer> = {
   async seatable({ values, url, headers, credKey }) {
     need(values, "url", "apiToken");
     const s = await session(`seatable:${credKey}`, 60 * 60 * 1000, async () => {
-      const res = await fetch(`${base(values.url)}/api/v2.1/dtable/app-access-token/`, { headers: { authorization: `Token ${values.apiToken}`, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const res = await safeFetch(`${base(values.url)}/api/v2.1/dtable/app-access-token/`, { headers: { authorization: `Token ${values.apiToken}`, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
       const d = (await res.json().catch(() => ({}))) as Record<string, string>;
       if (!res.ok || !d.access_token) throw new Error(`SeaTable: base-token ophalen mislukt (${res.status})`);
       return { token: d.access_token, uuid: d.dtable_uuid };
