@@ -1,0 +1,17 @@
+{
+  "name": "AIP Integratieplatform",
+  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+  },
+  "postCreateCommand": "cd platform && npm ci",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "forwardPorts": [3001],
+  "portsAttributes": {
+    "3001": { "label": "AIP Integratieplatform", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "codespaces": { "openFiles": ["platform/README.md"] }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "4gb" }
+}
