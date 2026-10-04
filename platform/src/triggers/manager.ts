@@ -246,7 +246,7 @@ class TriggerManager {
     for (const s of deployments.listStates()) {
       const def = deployments.getActiveDefinition(s.integration, env);
       const t = def?.trigger as Trig | undefined;
-      if (!def || t?.type !== "api") continue;
+      if (!def || t?.type !== "api" || t.apiId) continue; // via API-beheer gekoppeld: alleen via de gateway
       if (String(t.method || "GET").toUpperCase() !== method.toUpperCase()) continue;
       const tpl = String(t.path || def.integration).replace(/^\/|\/$/g, "").split("/");
       if (tpl.length !== want.length) continue;
@@ -304,7 +304,7 @@ class TriggerManager {
     for (const s of deployments.listStates()) {
       const def = deployments.getActiveDefinition(s.integration, env);
       const t = def?.trigger as Trig | undefined;
-      if (!def || t?.type !== "api") continue;
+      if (!def || t?.type !== "api" || t.apiId) continue;
       const p = "/" + String(t.path || def.integration).replace(/^\/|\/$/g, "");
       const method = String(t.method || "GET").toLowerCase();
       const params = [...p.matchAll(/\{(\w+)\}/g)].map((m) => ({ name: m[1], in: "path", required: true, schema: { type: "string" } }));

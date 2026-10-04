@@ -8,6 +8,8 @@ import { sqlQuery, mcpListTools } from "../connectors/services";
 import { STEP_CATALOG, TRIGGER_CATALOG } from "../engine/nodes";
 import { triggers } from "../triggers/manager";
 import nodemailer from "nodemailer";
+import { handleGateway } from "../apim/gateway";
+import { apim } from "../apim/apim";
 
 // Koppelingen, queues, triggers, bestanden en het webhook-endpoint.
 
@@ -235,14 +237,30 @@ export async function registerConnectorRoutes(app: FastifyInstance): Promise<voi
   for (const pre of ["", "/o/:org"]) {
     // ---------- API-endpoint-trigger: /apis/<omgeving>/<pad> (+ openapi.json per omgeving) ----------
     app.route<{ Params: { env: string; "*": string; org?: string } }>({
-      method: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+      method: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
       url: `${pre}/apis/:env/*`,
       schema: { hide: true },
       handler: async (req, reply) => {
         if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
         if (req.params["*"] === "openapi.json" && req.method === "GET") return triggers.openApi(req.params.env, baseUrl(req));
+        // API-beheer (specificaties + beleid) eerst; daarna de losse API-endpoint-triggers.
         try {
+          const prefix = req.params.org ? `/o/${req.params.org}` : "";
+          const g = await handleGateway(req.params.env, { method: req.method, path: req.params["*"], rawQuery: req.url.includes("?") ? req.url.slice(req.url.indexOf("?") + 1) : "", query: (req.query || {}) as Record<string, unknown>, headers: req.headers as Record<string, unknown>, body: req.body, ip: req.ip, baseUrl: baseUrl(req) + prefix });
+          if (g) {
+            for (const [k, v] of Object.entries(g.headers)) reply.header(k, v);
+            if (g.body === null || g.body === undefined) return reply.code(g.status).send();
+            return reply.code(g.status).send(g.body);
+          }
+        } catch (e) {
+          return reply.code(500).send({ error: (e as Error).message });
+        }
+        if (req.method === "OPTIONS" || req.method === "HEAD") return reply.code(404).send();
+        try {
+          const t0 = Date.now();
           const r = await triggers.handleApi(req.params.env, req.params["*"], { method: req.method, headers: req.headers as Record<string, unknown>, query: req.query as Record<string, unknown>, body: req.body });
+          // Ook aanroepen die nergens uitkomen in API-monitoring (ongevraagde verzoeken).
+          if (r.status === 404) apim.log({ at: new Date(t0).toISOString(), env: req.params.env, method: req.method, path: "/" + req.params["*"], status: 404, durationMs: Date.now() - t0, ip: req.ip, outcome: "geen endpoint" });
           return reply.code(r.status).send(r.body);
         } catch (e) {
           return reply.code(500).send({ error: (e as Error).message });

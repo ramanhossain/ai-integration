@@ -52,13 +52,13 @@ function keyBytes(): Buffer {
 }
 export const usingDefaultKey = () => !process.env.AIP_SECRET_KEY;
 
-function encrypt(plain: string): string {
+export function encrypt(plain: string): string {
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", keyBytes(), iv);
   const data = Buffer.concat([c.update(plain, "utf8"), c.final()]);
   return `enc:v1:${iv.toString("base64")}:${c.getAuthTag().toString("base64")}:${data.toString("base64")}`;
 }
-function decrypt(v: string): string {
+export function decrypt(v: string): string {
   if (!v.startsWith("enc:v1:")) return v;
   const [, , iv, tag, data] = v.split(":");
   const d = createDecipheriv("aes-256-gcm", keyBytes(), Buffer.from(iv, "base64"));

@@ -67,7 +67,16 @@ const handlers: Record<string, ActionHandler> = {
 
   "scale.workers": async (a) => ({ scaled: true, ...(a.payload ?? {}) }),
 
-  "mapping.update": async (a) => ({ applied: true, diff: a.diff ?? null })
+  "mapping.update": async (a) => ({ applied: true, diff: a.diff ?? null }),
+
+  "api.deploy": async (a) => {
+    const env = a.target?.environment;
+    const id = String(a.target?.resource || a.payload?.apiId || "");
+    if (!env || !isEnv(env) || !id) throw new Error("API of omgeving ontbreekt");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { apim } = require("../apim/apim") as typeof import("../apim/apim");
+    return { deployed: apim.deployApi(id, env, a.payload?.version as string | undefined, a.proposedBy) };
+  }
 };
 
 export function canExecute(type: string): boolean {

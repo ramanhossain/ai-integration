@@ -669,6 +669,31 @@
   .key-once { font-family:var(--mono); font-size:.82rem; word-break:break-all; background:var(--surface-2); border:1px dashed var(--border-2); border-radius:8px; padding:10px; }
   .kpis-4 { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:14px; }
   .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .pl-ic.logo { background:#fff; border:1px solid var(--border); padding:6px; box-sizing:border-box; }
+  .pk-ic.pl-ic.logo { padding:5px; border-width:1px; }
+  .pl-ic.logo img { width:100%; height:100%; object-fit:contain; display:block; }
+  /* API-beheer */
+  .am-tabs { display:inline-flex; margin:0 0 14px; } .am-tabs button { display:inline-flex; align-items:center; gap:6px; }
+  .am-head { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin:6px 0 12px; }
+  .am-envs { display:flex; gap:8px; flex-wrap:wrap; } .am-envv { display:inline-flex; gap:5px; align-items:center; border:1px solid var(--border); border-radius:8px; padding:3px 8px; font-size:.82rem; background:var(--surface); } .am-envv.off { opacity:.55; }
+  .am-sub { display:inline-flex; margin-bottom:12px; }
+  .am-m { display:inline-block; min-width:52px; text-align:center; font:600 .7rem var(--mono); padding:2px 6px; border-radius:5px; color:#fff; background:#64748b; }
+  .am-m.m-get { background:#2563eb; } .am-m.m-post { background:#16a34a; } .am-m.m-put { background:#d97706; } .am-m.m-patch { background:#7c3aed; } .am-m.m-delete { background:#dc2626; } .am-m.m-all { background:#334155; }
+  .am-ops td { vertical-align:top; } .am-on { margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }
+  .am-nopol { opacity:.3; text-decoration:line-through; }
+  .am-code { min-height:300px; font-size:.78rem; white-space:pre; tab-size:2; }
+  .am-pass { margin-top:6px; }
+  .am-h4 { margin:16px 0 6px; font-size:.76rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .am-h4 .faint { text-transform:none; letter-spacing:0; font-weight:400; }
+  .am-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; } .am-row .f { width:auto; } .am-row [data-ep-p], .am-row [data-r="claim"], .am-row [data-r="value"] { flex:1; }
+  .am-thr { display:inline-flex; align-items:center; gap:4px; font-size:.8rem; } .am-thr .f { width:70px; padding:4px 6px; }
+  .am-id { border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:8px; background:var(--surface-2); }
+  .am-id .row .f { width:auto; flex:1; min-width:110px; }
+  .am-keys { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px; font-size:.84rem; }
+  .am-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .am-filters .f { width:auto; min-width:120px; }
+  .am-bars { display:flex; align-items:flex-end; gap:2px; height:42px; margin-top:6px; } .am-bars span { flex:1; display:flex; flex-direction:column-reverse; height:100%; min-width:3px; }
+  .am-bars i { display:block; } .am-bars i.ok { background:var(--green); } .am-bars i.err { background:var(--red); }
+  .am-kv td { padding:4px 8px; border-bottom:1px solid var(--border); font-size:.84rem; }
 </style>
 </head>
 <body>
@@ -691,6 +716,7 @@
     <h6>Ontwikkelen</h6>
     <a href="#processes" data-nav="processes" title="Processen"><span class="ic">◇</span><span class="lbl">Processen</span></a>
     <a href="#plugins" data-nav="plugins" title="Plugins"><span class="ic">⧉</span><span class="lbl">Plugins</span></a>
+    <a href="#apis" data-nav="apis" title="API-beheer"><span class="ic">⇌</span><span class="lbl">API-beheer</span></a>
     <h6>Opslag &amp; berichten</h6>
     <a href="#datatables" data-nav="datatables" title="Datatabellen"><span class="ic">▤</span><span class="lbl">Datatabellen</span></a>
     <a href="#queues" data-nav="queues" title="Queues"><span class="ic">☰</span><span class="lbl">Queues</span></a>
@@ -757,6 +783,7 @@
 <script src="/app/accounts.js"></script>
 <script src="/app/infra.js"></script>
 <script src="/app/plugins.js"></script>
+<script src="/app/apim.js"></script>
 <script src="/app/assistant.js"></script>
 </body>
 </html>
