@@ -7,6 +7,7 @@ import { credentials } from "../connectors/credentials";
 import { ENVIRONMENTS, isEnv, type EnvName } from "../domain/environments";
 import { audit } from "../audit/auditLog";
 import { currentOrg, runInOrg } from "../tenancy/context";
+import { pluginLogo } from "../plugins/logos";
 
 // Plugins (connectors): catalogus, definities, uitvoeren/testen en OAuth2-verbinden.
 
@@ -25,6 +26,13 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     return { stats: plugins.stats(), categories: plugins.categories, items };
   });
 
+  // Logo van de organisatie achter de plugin (merkicoon of favicon; 404 = initialen tonen).
+  app.get<{ Params: { id: string } }>("/api/v1/plugins/:id/logo", { schema: { tags: ["plugins"], summary: "Logo van de dienst (SVG/PNG/ICO)" } }, async (req, reply) => {
+    if (!/^[a-z0-9-]{1,60}$/.test(req.params.id)) return reply.code(404).send({ error: "Onbekend" });
+    const logo = await pluginLogo(req.params.id).catch(() => null);
+    if (!logo) return reply.code(404).header("cache-control", "public, max-age=86400").send({ error: "Geen logo" });
+    return reply.type(logo.type).header("cache-control", "public, max-age=604800").header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'").send(logo.body);
+  });
   app.get<{ Params: { id: string } }>("/api/v1/plugins/:id", { schema: { tags: ["plugins"], summary: "Volledige definitie van een connector (operaties, parameters, authenticatie)" } }, async (req, reply) => {
     const def = plugins.get(req.params.id);
     const cat = CATALOG.find((c) => c.id === req.params.id);

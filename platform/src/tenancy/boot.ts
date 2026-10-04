@@ -10,6 +10,7 @@ import { credentials } from "../connectors/credentials";
 import { broker } from "../connectors/queue";
 import { datatables } from "../connectors/datatables";
 import { triggers } from "../triggers/manager";
+import { apim } from "../apim/apim";
 
 // Gegevens van één organisatie laden (in haar eigen context) en haar achtergrondwerk
 // (queues, triggers) starten. Timers die hier ontstaan houden de context van de organisatie.
@@ -31,6 +32,7 @@ export async function hydrateOrg(org: string): Promise<void> {
     await broker.hydrate();
     await datatables.hydrate();
     await triggers.hydrate();
+    await apim.hydrate();
   });
 }
 

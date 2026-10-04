@@ -45,6 +45,7 @@ export const defaultPolicy: PolicyConfig = {
     { match: /^deployment\.targets$/, level: "orange", prod: "red", reason: "Wijzigt waar een proces draait (omgevingsvarianten)." },
     { match: /^integration\.delete$/, level: "orange", prod: "red", reason: "Verwijdert een proces dat gedeployed is." },
     { match: /^deploy\.(prod|production)$/, level: "red", reason: "Productie-deployment." },
+    { match: /^api\.deploy$/, level: "orange", prod: "red", reason: "API (specificatie) naar een omgeving deployen." },
     { match: /^db\./, level: "red", reason: "Databasewijziging." },
     { match: /^secret\./, level: "red", reason: "Secrets/credentials." },
     { match: /^(iam|firewall)\./, level: "red", reason: "Toegang/netwerk." },

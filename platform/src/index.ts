@@ -30,6 +30,7 @@ import { accounts } from "./auth/accounts";
 import { mailer } from "./auth/mailer";
 import { registerAuth, AUTH_ENABLED } from "./auth/guard";
 import { registerAuthRoutes } from "./api/authRoutes";
+import { registerApimRoutes } from "./api/apimRoutes";
 import { hydrateOrg, startOrg } from "./tenancy/boot";
 
 const SCHEMA_DIR = join(__dirname, "..", "schemas");
@@ -47,6 +48,7 @@ export async function buildServer() {
     try { done(null, JSON.parse(text)); }
     catch (err) { (err as Error & { statusCode?: number }).statusCode = 400; done(err as Error, undefined); }
   });
+  app.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: 10 * 1024 * 1024 }, (_req, body, done) => done(null, body));
 
   // Persistentie: init + status hydrateren (in-memory by default; Postgres via DATABASE_URL).
   // Accounts zijn platformbreed; daarna de gegevens van elke organisatie (eigen context).
@@ -95,6 +97,7 @@ export async function buildServer() {
         { name: "settings", description: "Platforminstellingen (o.a. vier-ogenprincipe)" },
         { name: "events", description: "Event stream (SSE)" },
         { name: "auth", description: "Inloggen, aanmelden, wachtwoord vergeten" },
+        { name: "apim", description: "API-beheer: specificaties, beleid, API-sleutels, OAuth-uitgevers en monitoring" },
         { name: "org", description: "Organisatie: accounts, rechten per omgeving, API-sleutels (beheerders)" },
         { name: "admin", description: "Platformbeheer: alle organisaties en accounts (hoofdaccount)" }
       ]
@@ -112,6 +115,7 @@ export async function buildServer() {
   await registerRuntimeRoutes(app);
   await registerPluginRoutes(app);
   await registerConnectorRoutes(app);
+  await registerApimRoutes(app);
 
   // JSON Schemas ook los opvraagbaar (o.a. voor MCP-resources).
   app.get<{ Params: { name: string } }>("/api/v1/schemas/:name", { schema: { tags: ["catalog"] } }, async (req, reply) => {

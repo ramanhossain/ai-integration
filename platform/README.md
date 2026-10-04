@@ -124,9 +124,21 @@ Elk opslaan maakt een nieuwe versie op DEV, met optioneel een wijzigingsnotitie.
 - **Instellingen → Versies**: aantal bewaarde versies per proces (standaard 50, maximaal 100; oudere worden automatisch opgeruimd) en **Opschonen** (alle oude versies van alle processen verwijderen). Versies die op een omgeving draaien of in een openstaand goedkeuringsverzoek staan, blijven altijd bewaard.
 - API: `GET /api/v1/integrations/:name/versions`, `GET /api/v1/versions/stats`, `POST /api/v1/versions/cleanup`, `POST /api/v1/integrations?note=…`.
 
+## API-beheer
+
+Pagina **API-beheer** (Ontwikkelen) — vergelijkbaar met API management in iPaaS-platforms:
+- **API's** uit een OpenAPI-specificatie (3.x of 2.0, JSON of YAML; plakken of uploaden). Basispad uit `servers[0].url` of zelf in te stellen (uniek). Aanroepen op `/apis/<omgeving>/<basispad>/<operatie>` (andere organisaties: `/o/<org>/apis/…`); `…/<basispad>/openapi.json` geeft de specificatie voor afnemers.
+- **Operaties koppelen** aan een proces (bestaand of met één klik een nieuw proces met API-trigger) of als **passthrough** naar een achterliggende API (pad/query doorgeven, headers toevoegen of weghalen); ook een passthrough voor alle endpoints. Een proces bepaalt het antwoord met `_response: { status, headers, body }`.
+- **Versies**: opslaan = nieuwe patchversie op DEV; deployen naar TEST/ACC/PROD gaat via goedkeuring (PROD: vier-ogen) en publiceert de versie als nieuwe majorversie (daarna onveranderlijk). Terugzetten kan.
+- **API-beleid** per omgeving: endpoints (pad = prefix, `{var}` = segment, specifiekste pad en expliciete methode winnen; één beleid per methode/pad/omgeving), identiteiten **API-sleutel** (header of query), **OAuth/JWT** (uitgevers met JWKS of gedeeld geheim; claim-regels bestaat/is precies/regex) en **publiek**, **throttling** per endpoint en per identiteit, **logging** (identiteit, query, headers, bodies tot 1/10/100 KB, IP-modus), **CORS** en **IP-beperking**. Zonder beleid: geen toegang.
+- **API-sleutels** voor afnemers per omgeving (eenmalig getoond, alleen als hash bewaard) en **OAuth-uitgevers**.
+- **Monitoring**: alle aanroepen (ook ongevraagde), filters op omgeving, API, methode, statuscode, duur, periode, pad, query, IP en identiteit; details per aanroep met gekoppelde run; geheimen in headers gemaskeerd.
+- **Proberen** per operatie: echte aanroep via de gateway (met beleid en monitoring).
+- Tests: `npm run test:apim`.
+
 ## Plugins (connectors naar externe diensten)
 
-Pagina **Plugins** (Ontwikkelen → Plugins) toont alle connectors: 284 in de catalogus, waarvan 282 uitgewerkt met 1454 operaties. Nog *gepland*: Orbit (dienst gestopt in 2024) en Flow (API-documentatie van getflow.com niet bereikbaar). Eigen implementatie op de publieke API's van de diensten.
+Pagina **Plugins** (Ontwikkelen → Plugins) toont alle connectors met het logo van de dienst (merkicoon uit simple-icons, CC0, of het app-icoon/favicon van de website, gecachet in `data/logos`): 284 in de catalogus, waarvan 282 uitgewerkt met 1454 operaties. Nog *gepland*: Orbit (dienst gestopt in 2024) en Flow (API-documentatie van getflow.com niet bereikbaar). Eigen implementatie op de publieke API's van de diensten.
 
 - Definities: `src/plugins/defs/*.ts` (declaratief: baseUrl, authenticatie, operaties met parameters). Runtime: `src/plugins/runtime.ts` (OAuth2 met verversen, client credentials, AWS Signature V4, API-keys, basic, bearer).
 - Eigen ondertekening (`auth.type: "custom"`, `src/plugins/signers.ts`): Ghost Admin-JWT, Azure Storage Shared Key (of SAS), Azure Cosmos DB master key, Unleashed HMAC, en sessies voor SeaTable, FileMaker, Wekan en Venafi TPP.

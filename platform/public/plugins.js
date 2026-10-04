@@ -4,7 +4,16 @@
 
 const PL = { q: "", cat: "", status: "" };
 const initials = (n) => n.replace(/\(.*?\)/g, "").split(/[\s.-]+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || n.slice(0, 2);
-const plIcon = (p, size = 40) => `<span class="pl-ic" style="--c:${esc(p.color || "#64748b")};width:${size}px;height:${size}px;font-size:${Math.round(size / 2.9)}px" aria-hidden="true">${esc(initials(p.name))}</span>`;
+// Logo van de organisatie; lukt dat niet, dan de initialen in de merkkleur.
+const plIcon = (p, size = 40) => `<span class="pl-ic logo" style="--c:${esc(p.color || "#64748b")};width:${size}px;height:${size}px;font-size:${Math.round(size / 2.9)}px" aria-hidden="true" data-initials="${esc(initials(p.name))}"><img src="/api/v1/plugins/${encodeURIComponent(p.id)}/logo" alt="" loading="lazy" decoding="async"></span>`;
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  const box = img.closest(".pl-ic.logo");
+  if (!box) return;
+  box.classList.remove("logo");
+  box.textContent = box.dataset.initials || "";
+}, true);
 const AUTH_LABEL = { none: "Geen", bearer: "Token", basic: "Gebruiker + wachtwoord/token", apiKey: "API-key", headers: "Sleutels", query: "Sleutels", oauth2: "OAuth 2.0 (inloggen)", "oauth2-client": "OAuth 2.0 (client credentials)", aws: "AWS-sleutels (Signature V4)", custom: "Verbindingsgegevens" };
 
 VIEWS.plugins = async (main) => {

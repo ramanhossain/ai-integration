@@ -62,11 +62,14 @@ function envsOf(req: FastifyRequest): EnvName[] {
   const p = (req.params || {}) as Record<string, unknown>, q = (req.query || {}) as Record<string, unknown>;
   const b = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
   for (const v of [p.env, q.env, b.env, b.toEnv, b.environment]) if (isEnv(v)) out.add(v);
+  if (Array.isArray(b.envs)) for (const v of b.envs) if (isEnv(v)) out.add(v);
   const url = req.url.split("?")[0];
   if (req.method !== "GET" && /^\/api\/v1\/credentials\//.test(url) && b.values && typeof b.values === "object") for (const e of Object.keys(b.values)) if (isEnv(e)) out.add(e);
   const ap = url.match(/^\/api\/v1\/approvals\/([^/]+)\/(approve|reject)$/);
   if (ap) { const a = approvals.get(ap[1]); const e = (a?.action.target as { environment?: string } | undefined)?.environment; if (isEnv(e)) out.add(e); }
   // Bouwen (opslaan, terugzetten, importeren) gebeurt altijd op DEV.
+  // API's bouwen (opslaan, terugzetten, verwijderen, koppelen) is werk op DEV.
+  if (req.method !== "GET" && /^\/api\/v1\/apim\/apis(\/[^/]+)?(\/(versions\/[^/]+\/restore|link-new-process))?$/.test(url)) out.add("dev");
   if (req.method === "POST" && (/^\/api\/v1\/integrations\/?$/.test(url) || /\/versions\/\d+\/restore$/.test(url) || /^\/api\/v1\/(transfer\/)?import/.test(url))) out.add("dev");
   return [...out];
 }
@@ -89,8 +92,8 @@ export function registerAuth(app: FastifyInstance): void {
     reply.header("x-content-type-options", "nosniff");
     reply.header("referrer-policy", "same-origin");
     if (!reply.hasHeader("x-frame-options")) reply.header("x-frame-options", "DENY");
-    if (req.url.startsWith("/app")) reply.header("content-security-policy", CSP);
-    if (req.url.startsWith("/api/")) reply.header("cache-control", "no-store");
+    if (req.url.startsWith("/app")) { reply.header("content-security-policy", CSP); reply.header("cache-control", "no-cache"); }
+    if (req.url.startsWith("/api/") && !reply.hasHeader("cache-control")) reply.header("cache-control", "no-store");
     done(null, payload);
   });
 

@@ -16,7 +16,8 @@
     "test:plugins": "tsx scripts/plugin-test.ts",
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:auth": "tsx scripts/auth-test.ts"
+    "test:auth": "tsx scripts/auth-test.ts",
+    "test:apim": "tsx scripts/apim-test.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.5",
@@ -41,7 +42,9 @@
     "oracledb": "^7.0.1",
     "pg": "^8.12.0",
     "rhea": "^3.0.5",
+    "simple-icons": "^16.33.0",
     "ssh2-sftp-client": "^12.1.1",
+    "yaml": "^2.9.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
