@@ -3,6 +3,13 @@
 // Aanvullen: voeg de Nederlandse tekst zoals die in de code staat toe met de Engelse vertaling.
 window.I18N_EN = {
   phrases: {
+    "Nog geen uitvoeringen": "No runs yet",
+    "Nog geen versies": "No versions yet",
+    "Dit proces is nog niet opgeslagen.": "This process has not been saved yet.",
+    "Uitvoeringen verschijnen hier zodra het proces is opgeslagen en draait (via de trigger, ▶ Uitvoeren of een test).": "Runs appear here once the process is saved and runs (via the trigger, ▶ Run or a test).",
+    "Bij elke keer opslaan ontstaat een nieuwe versie op DEV; die zie je hier, met datum, notitie en waar hij draait.": "Every save creates a new version on DEV; you see it here, with date, note and where it runs.",
+    "Terug naar de editor": "Back to the editor",
+    "Nu opslaan": "Save now",
     "API-beheer": "API management",
     "Beleid": "Policies",
     "OAuth-uitgevers": "OAuth issuers",

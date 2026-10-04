@@ -394,7 +394,7 @@ function renderEditor(main) {
   <div class="crumbs"><a href="#processes">Processen</a> / ${esc(def.integration)}</div>
   <div class="ed-head">
     <div class="ed-title"><div class="t"><h1 id="ed-name">${esc(def.integration)}</h1><span class="dirty ${E.dirty ? "" : "hide"}" id="ed-dirty">● niet opgeslagen</span></div><div class="row">${envBadges}</div></div>
-    <div class="ed-tabs"><button class="${E.tab === "editor" ? "on" : ""}" data-act="ed-tab" data-tab="editor">Editor</button><button class="${E.tab === "runs" ? "on" : ""}" data-act="ed-tab" data-tab="runs" ${E.isNew ? "disabled" : ""}>Uitvoeringen</button><button class="${E.tab === "versions" ? "on" : ""}" data-act="ed-tab" data-tab="versions" ${E.isNew ? "disabled" : ""}>Versies</button></div>
+    <div class="ed-tabs"><button class="${E.tab === "editor" ? "on" : ""}" data-act="ed-tab" data-tab="editor">Editor</button><button class="${E.tab === "runs" ? "on" : ""}" data-act="ed-tab" data-tab="runs">Uitvoeringen</button><button class="${E.tab === "versions" ? "on" : ""}" data-act="ed-tab" data-tab="versions">Versies</button></div>
     <div class="row">
       <button class="btn sec" data-act="ed-trigger" id="ed-trigger-btn" title="Kies hoe dit proces start">⚡ ${esc((PC.TRIGGERS[def.trigger?.type] || { label: "Trigger kiezen" }).label)}</button>
       ${iconBtn("settings", "Procesinstellingen", 'data-act="ed-settings"', "sec")}
@@ -409,8 +409,14 @@ function renderEditor(main) {
         <aside class="ed-side ${E.sideOpen ? "" : "hide"}" id="ed-side" aria-label="Procesinstellingen"></aside>
         <div class="ed-run"><button class="btn run" data-act="ed-execute">▶ Proces uitvoeren</button><button class="btn sec" data-act="ed-testdata">Testdata</button></div></div>
        <div id="ed-logs-host"></div>`
+    // Nieuw, nog niet opgeslagen proces: uitleggen in plaats van een uitgeschakeld tabblad.
+    : E.isNew ? `<div class="card"><div class="cb ed-newinfo">${ic(E.tab === "runs" ? "play" : "history", 28)}
+        <h3>${E.tab === "runs" ? "Nog geen uitvoeringen" : "Nog geen versies"}</h3>
+        <p class="muted">Dit proces is nog niet opgeslagen. ${E.tab === "runs" ? "Uitvoeringen verschijnen hier zodra het proces is opgeslagen en draait (via de trigger, ▶ Uitvoeren of een test)." : "Bij elke keer opslaan ontstaat een nieuwe versie op DEV; die zie je hier, met datum, notitie en waar hij draait."}</p>
+        <div class="row" style="justify-content:center"><button class="btn sec" data-act="ed-tab" data-tab="editor">Terug naar de editor</button><button class="btn" data-act="ed-save" data-ico-done>${ic("save")}<span>Nu opslaan</span></button></div></div></div>`
     : E.tab === "versions" ? `<div id="ed-versions"><div class="card"><div class="empty">laden…</div></div></div>`
     : `<div class="card"><div class="tw" id="ed-runs"><div class="empty">laden…</div></div></div>`}`;
+  if (E.isNew && E.tab !== "editor") return;
   if (E.tab === "versions") { renderVersions($("#ed-versions"), def.integration, E.dirty).catch((e) => toast(e.message, true)); return; }
   if (E.tab === "editor") {
     S.canvas = PC.mount($("#canvas-host"), {
