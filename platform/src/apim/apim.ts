@@ -33,7 +33,7 @@ export interface ApiDoc {
   links: Record<string, OpLink>; passthroughAll?: OpLink;
   createdAt: string; createdBy: string; updatedAt: string; updatedBy: string;
 }
-export interface ApiVersion { key: string; apiId: string; version: string; at: string; by: string; note?: string; published?: boolean; doc: ApiDoc }
+export interface ApiVersion { key: string; apiId: string; version: string; at: string; by: string; note?: string; published?: boolean; publishedAs?: string; doc: ApiDoc }
 export interface ApiDeploy { version: string; at: string; by: string }
 export interface Operation { key: string; method: string; path: string; operationId?: string; summary?: string; params: Array<{ name: string; in: string; required?: boolean }>; hasBody: boolean; tags?: string[] }
 
@@ -217,10 +217,14 @@ class Apim {
     if (!d) throw new Error("API niet gevonden");
     let v = this.versions.get(`${id}@${version || d.version}`);
     if (!v) throw new Error(`Versie ${version} bestaat niet`);
+    if (!v.published && v.publishedAs && this.versions.get(`${id}@${v.publishedAs}`)) v = this.versions.get(`${id}@${v.publishedAs}`)!;
     if (!v.published) {
+      const source = v;
       const major = bump([...this.versions.values()].filter((x) => x.apiId === id).map((x) => x.version).sort(cmpVer).pop() || v.version, "major");
       const pub: ApiDoc = { ...JSON.parse(JSON.stringify(v.doc)), version: major };
       this.record(pub, by, `Gepubliceerd vanaf ${v.version}`, true);
+      source.publishedAs = major;
+      persistence.put("apim-versions", source.key, source);
       v = this.versions.get(`${id}@${major}`)!;
       if (d.version === version || !version) { d.version = major; persistence.put("apim-apis", id, d); }
     }
@@ -245,15 +249,29 @@ class Apim {
     if (live.length) throw new Error(`API staat nog op ${live.join(", ")}. Haal hem daar eerst weg.`);
     this.apis.delete(id);
     persistence.delete("apim-apis", id);
+    for (const [k, v] of this.versions) if (v.apiId === id) { this.versions.delete(k); persistence.delete("apim-versions", k); }
+    this.deploys.delete(id);
+    persistence.delete("apim-deploys", id);
     audit.append({ actor: by, event: "api.deleted", subject: id });
     bus.publish("api.changed", { id });
   }
   undeployApi(id: string, env: EnvName, by: string): void {
+    if (!this.apis.has(id)) throw Object.assign(new Error("API niet gevonden"), { statusCode: 404 });
     const cur = this.deploys.get(id) || {};
+    if (!cur[env]) throw Object.assign(new Error(`API staat niet op ${env.toUpperCase()}`), { statusCode: 404 });
     delete cur[env];
     this.deploys.set(id, cur);
     persistence.put("apim-deploys", id, cur);
     audit.append({ actor: by, event: "api.undeployed", subject: id, data: { env } });
+  }
+
+  // Processen die in API-beheer aan een operatie gekoppeld zijn (werkversie of gedeployed):
+  // die zijn alleen via de gateway (met beleid) bereikbaar, niet via de losse API-endpoints.
+  linkedProcesses(): Set<string> {
+    const out = new Set<string>();
+    const add = (d?: ApiDoc) => { for (const l of Object.values(d?.links || {})) if (l.mode === "process" && l.process) out.add(l.process); };
+    for (const d of this.apis.values()) { add(d); for (const e of ENVIRONMENTS) add(this.docFor(d.id, e)); }
+    return out;
   }
 
   // Welke API en operatie hoort bij een pad op een omgeving?
@@ -294,6 +312,10 @@ class Apim {
       return { type: "public", name: "Publiek" };
     });
     if (!identities.length) throw new Error("Kies minstens één identiteit (API-sleutel, OAuth of publiek)");
+    for (const i of identities) if (i.type === "apikey") {
+      const wrong = i.keys.map((k) => this.keys.get(k)).filter((k) => k && !envs.includes(k.env));
+      if (wrong.length) throw new Error(`Sleutel '${wrong[0]!.name}' hoort bij ${wrong[0]!.env.toUpperCase()}, dat niet in dit beleid zit`);
+    }
     for (const i of identities) {
       if (i.type === "apikey" && !i.keys.length) throw new Error(`Identiteit '${i.name}': kies minstens één API-sleutel`);
       if (i.type === "oauth" && !i.issuers.length) throw new Error(`Identiteit '${i.name}': kies minstens één OAuth-uitgever`);
@@ -407,6 +429,7 @@ class Apim {
   deleteIssuer(id: string, by: string): void {
     if (!this.issuers.delete(id)) throw new Error("Uitgever niet gevonden");
     persistence.delete("apim-issuers", id);
+    for (const p of this.policies.values()) for (const i of p.identities) if (i.type === "oauth" && i.issuers.includes(id)) { i.issuers = i.issuers.filter((x) => x !== id); persistence.put("apim-policies", p.id, p); }
     audit.append({ actor: by, event: "api.issuer_deleted", subject: id });
   }
   issuersFor(ids: string[]): Issuer[] {

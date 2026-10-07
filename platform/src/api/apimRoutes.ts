@@ -50,6 +50,7 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
     { schema: { ...T, summary: "Opslaan (op DEV) = nieuwe patchversie", body: { type: "object", properties: { specText: { type: "string", maxLength: 2_000_000 }, basePath: { type: "string" }, title: { type: "string" }, description: { type: "string" }, links: { type: "object" }, passthroughAll: { type: "object" }, note: { type: "string", maxLength: 500 } } } } },
     async (req, reply) => {
       const { note, ...patch } = req.body;
+      for (const [k, l] of Object.entries(patch.links || {})) if (l && l.mode === "process" && (!l.process || !registry.getIntegration(l.process))) return reply.code(400).send({ error: `Operatie ${k}: proces '${l.process || ""}' bestaat niet` });
       // Bouwen gebeurt op DEV: schrijfrechten op DEV vereist (zie auth-hook via env).
       try { apim.saveApi(req.params.id, patch, who(req), note); return detail(req.params.id, req); } catch (err) { return fail(reply, err); }
     }
@@ -71,13 +72,16 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
       const version = req.body.version || d.version;
       if (!apim.getVersion(d.id, version)) return reply.code(400).send({ error: `Versie ${version} bestaat niet` });
       const cur = apim.deployed(d.id)[env]?.version;
-      if (cur === version) return reply.code(409).send({ error: `Versie ${version} staat al op ${env.toUpperCase()}` });
+      const pub = apim.getVersion(d.id, version)?.publishedAs;
+      if (cur === version || (pub && cur === pub)) return reply.code(409).send({ error: `Versie ${version} staat al op ${env.toUpperCase()}` });
+      const open = approvals.list({ status: "pending" }).find((a) => a.action.type === "api.deploy" && a.action.target?.resource === d.id && a.action.target?.environment === env);
+      if (open) return reply.code(409).send({ error: `Er staat al een deployverzoek voor ${d.title} naar ${env.toUpperCase()} open`, approvalId: open.id });
       return approvals.propose({ type: "api.deploy", proposedBy: who(req), reason: `API ${d.title} (${version}) naar ${env.toUpperCase()}${cur ? ` (nu ${cur})` : ""}`, target: { environment: env, resource: d.id }, payload: { apiId: d.id, version, from: cur }, reversible: true });
     }
   );
   app.delete<{ Params: { id: string; env: string } }>("/api/v1/apim/apis/:id/deploy/:env", { schema: { ...T, summary: "API van een omgeving halen" } }, async (req, reply) => {
     if (!isEnv(req.params.env) || req.params.env === "dev") return reply.code(400).send({ error: "Kies TEST, ACC of PROD" });
-    apim.undeployApi(req.params.id, req.params.env, who(req));
+    try { apim.undeployApi(req.params.id, req.params.env, who(req)); } catch (err) { return reply.code((err as { statusCode?: number }).statusCode || 400).send({ error: (err as Error).message }); }
     return detail(req.params.id, req);
   });
   app.get<{ Params: { id: string }; Querystring: { env?: string } }>("/api/v1/apim/apis/:id/spec", { schema: { ...T, summary: "OpenAPI zoals afnemers die zien (met server-URL)" } }, async (req, reply) => {
@@ -113,7 +117,7 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
     }
   );
   app.get("/api/v1/apim/endpoints", { schema: { ...T, summary: "Bekende endpoints (voor beleid)" } }, async () =>
-    apim.listApis().flatMap((a) => apim.operations(apim.getApi(a.id)!).map((o) => ({ api: a.title, method: o.method, path: a.basePath + o.path, operationId: o.operationId }))));
+    apim.listApis().flatMap((a) => apim.operations(apim.getApi(a.id)!).map((o) => ({ api: a.title, basePath: a.basePath, method: o.method, path: a.basePath + o.path, operationId: o.operationId }))));
 
   // ---------------------------------------------------------------- beleid
   app.get("/api/v1/apim/policies", { schema: { ...T, summary: "API-beleid" } }, async () => apim.listPolicies());

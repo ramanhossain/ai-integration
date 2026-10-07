@@ -32,7 +32,7 @@ VIEWS.plugins = async (main) => {
   </div>
   <div class="pl-count faint">${items.length} connector${items.length === 1 ? "" : "s"}</div>
   <div class="pl-grid">${items.map((p) => `<a class="pl-card ${p.status === "gepland" ? "planned" : ""}" href="#plugins/${encodeURIComponent(p.id)}">
-      ${plIcon(p)}<div class="pl-b"><div class="pl-t"><b>${esc(p.name)}</b>${p.status === "beschikbaar" ? `<span class="chip ok">${p.operations} operaties</span>` : `<span class="chip none">gepland</span>`}</div>
+      ${plIcon(p)}<div class="pl-b"><div class="pl-t"><b>${esc(p.name)}</b>${p.status === "beschikbaar" ? `<span class="chip ok">${p.operations} operatie${p.operations === 1 ? "" : "s"}</span>` : `<span class="chip none">gepland</span>`}</div>
       <div class="pl-d">${esc(p.description)}</div>
       <div class="pl-m faint">${esc(p.category)}${p.auth ? ` · ${esc(AUTH_LABEL[p.auth] || p.auth)}` : ""}${credCount(p.id) ? ` · <span class="chip info">${credCount(p.id)} koppeling${credCount(p.id) === 1 ? "" : "en"}</span>` : ""}</div></div></a>`).join("") || `<div class="empty">Geen connectors gevonden.</div>`}</div>`;
   const qEl = document.getElementById("pl-q");
@@ -190,4 +190,4 @@ document.addEventListener("click", async (e) => {
     }
   } catch (err) { toast(err.message, true); }
 });
-window.addEventListener("message", (e) => { if (e.data && e.data.type === "aip-oauth") { toast(e.data.ok ? "Verbonden ✓" : "Verbinden mislukt", !e.data.ok); if (S.view === "plugins") render(); } });
+window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.type === "aip-oauth") { toast(e.data.ok ? "Verbonden ✓" : "Verbinden mislukt", !e.data.ok); if (S.view === "plugins") render(); } });

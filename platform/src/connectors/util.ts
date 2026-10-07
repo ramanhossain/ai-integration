@@ -36,6 +36,19 @@ export function tpl(str: unknown, data: unknown, env = "dev"): string {
   });
 }
 
+// {{velden}} in een template die niet in de data staan (speciale $-waarden tellen niet mee).
+export function missingVars(str: unknown, data: unknown): string[] {
+  if (typeof str !== "string") return [];
+  const out: string[] = [];
+  for (const m of str.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)) {
+    const expr = m[1];
+    if (expr.startsWith("$")) continue;
+    const v = getPath(data, expr);
+    if (v === undefined || v === null) out.push(expr);
+  }
+  return out;
+}
+
 // Template toepassen op alle strings in een object. Een string die volledig één
 // {{expressie}} is, behoudt het type van de waarde (getal, object).
 export function deepTpl(value: unknown, data: unknown, env = "dev"): unknown {

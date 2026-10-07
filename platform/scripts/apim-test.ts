@@ -58,6 +58,8 @@ async function main() {
   ok(r.status === 200 && r.body.id === "42", "met sleutel: proces antwoordt", r.body);
   r = await req("GET", "/apis/dev/klanten/v1/legacy/abc?q=1", undefined, { "x-api-key": kDev.key });
   ok(r.status === 200 && r.body.path === "/old/legacy/abc?q=1" && r.body.auth === "geheim" && r.body.apiKeyForwarded === false, "passthrough: pad, query, extra header; sleutel niet doorgestuurd", r.body);
+  r = await req("GET", "/apis/dev/klanten/v1/legacy/abc?api_key=" + kDev.key + "&q=2", undefined, { "x-api-key": kDev.key });
+  ok(r.status === 200 && !String(r.body.path).includes("api_key"), "passthrough stuurt sleutel in query niet door", r.body);
   r = await req("OPTIONS", "/apis/dev/klanten/v1/klanten/1", undefined, { origin: "https://app.partner.nl", "access-control-request-method": "GET" });
   ok(r.status === 204 && r.headers["access-control-allow-origin"] === "https://app.partner.nl", "CORS-preflight voor toegestane origin");
   r = await req("OPTIONS", "/apis/dev/klanten/v1/klanten/1", undefined, { origin: "https://evil.example", "access-control-request-method": "GET" });
@@ -71,10 +73,14 @@ async function main() {
   console.log("=== Monitoring ===");
   r = await req("GET", "/api/v1/apim/logs?limit=50");
   const okLog = r.body.items.find((l: any) => l.status === 200 && l.path.endsWith("/klanten/42"));
-  ok(okLog && okLog.identity === "Partner: Partner" && okLog.query === "veld=a" && okLog.ip === "198.51.100.7" && okLog.reqHeaders && okLog.reqHeaders["x-api-key"] === "•••" && okLog.resBody, "logvelden volgens beleid (identiteit, query, IP uit XFF, headers, body)", okLog);
+  ok(okLog && okLog.identity === "Partner: Partner" && okLog.query === "veld=a" && okLog.ip === "198.51.100.7" && okLog.reqHeaders && !("x-api-key" in okLog.reqHeaders) && okLog.resBody, "logvelden volgens beleid (identiteit, query, IP uit XFF, headers, body)", okLog);
   ok(!okLog.reqHeaders?.authorization && !okLog.reqHeaders?.cookie, "authorization/cookie nooit gelogd");
   r = await req("GET", "/api/v1/apim/logs?status=429");
   ok(r.body.total >= 1, "filter op statuscode");
+
+  r = await req("GET", "/api/v1/runs?limit=50");
+  const runs = (r.body.items || r.body) as any[];
+  ok(runs.length && !JSON.stringify(runs).includes(kDev.key), "API-sleutel van de afnemer niet in de run-data");
 
   console.log("=== OAuth / JWT ===");
   r = await req("POST", "/api/v1/apim/issuers", { name: "Test IdP", issuer: "https://idp.test", audience: "api://klanten", hsSecret: "supergeheim-123" });
@@ -129,11 +135,21 @@ async function main() {
   ok(r.status === 200 && r.body.servers[0].url.endsWith("/apis/test/klanten/v1") && r.body.info.version === "2.0.0", "openapi.json per omgeving met server-URL en versie");
   r = await req("GET", "/apis/dev/getKlant");
   ok(r.status === 404, "gekoppeld proces niet via losse API-endpoints bereikbaar (geen omzeiling van beleid)");
+  r = await req("POST", "/api/v1/integrations?create=true", { integration: "OudEndpoint", version: "1", trigger: { type: "api", method: "GET", path: "oud/{x}" }, steps: [{ id: "a", type: "enrich", config: { set: { ok: true } } }], connections: [{ from: "start", to: "a" }] });
+  ok((await req("GET", "/apis/dev/oud/1")).status === 200, "oud API-endpoint werkt zonder koppeling");
+  r = await req("GET", `/api/v1/apim/apis/${id}`);
+  await req("PUT", `/api/v1/apim/apis/${id}`, { links: { ...r.body.links, "GET /klanten/{id}": { mode: "process", process: "OudEndpoint" } } });
+  ok((await req("GET", "/apis/dev/oud/1")).status === 404, "bestaand proces na koppelen niet meer via de oude route (beleid niet te omzeilen)");
+  r = await req("PUT", `/api/v1/apim/apis/${id}`, { links: { "GET /klanten/{id}": { mode: "process", process: "BestaatNiet" } } });
+  ok(r.status === 400, "koppelen aan niet-bestaand proces geweigerd");
+  r = await req("POST", `/api/v1/apim/apis/${id}/deploy`, { env: "acc" });
+  const r2 = await req("POST", `/api/v1/apim/apis/${id}/deploy`, { env: "acc" });
+  ok(r.status === 200 && r2.status === 409, "geen tweede openstaand deployverzoek", r2.body);
 
   console.log("=== IP-beperking en publiek ===");
   r = await req("POST", "/api/v1/apim/policies", { name: "Alleen intern", envs: ["acc"], endpoints: [{ method: "ALL", path: "/klanten/v1" }], identities: [{ type: "public" }], ipAllow: ["10.0.0.0/8"] });
-  const ad = await req("POST", `/api/v1/apim/apis/${id}/deploy`, { env: "acc", version: "2.0.0" });
-  await req("POST", `/api/v1/approvals/${ad.body.id}/approve`, { approver: "bob" }, { "x-aip-user": "bob" });
+  const pend = (await req("GET", "/api/v1/approvals?status=pending")).body.find((a: any) => a.action.type === "api.deploy" && a.action.target.environment === "acc");
+  await req("POST", `/api/v1/approvals/${pend.id}/approve`, { approver: "bob" }, { "x-aip-user": "bob" });
   r = await req("GET", "/apis/acc/klanten/v1/legacy/z");
   ok(r.status === 403 && /IP/.test(r.body.error), "IP buiten de lijst geweigerd (inject-IP 127.0.0.1)", r.body);
 

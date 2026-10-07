@@ -3,6 +3,11 @@
 // Aanvullen: voeg de Nederlandse tekst zoals die in de code staat toe met de Engelse vertaling.
 window.I18N_EN = {
   phrases: {
+    "Van een omgeving halen:": "Remove from an environment:",
+    "Van omgeving halen": "Remove from environment",
+    "is daarna niet meer bereikbaar op": "is then no longer reachable on",
+    ". De versies blijven bewaard; je kunt later opnieuw deployen.": ". The versions are kept; you can deploy again later.",
+    "operatie": "operation",
     "Nog geen uitvoeringen": "No runs yet",
     "Nog geen versies": "No versions yet",
     "Dit proces is nog niet opgeslagen.": "This process has not been saved yet.",

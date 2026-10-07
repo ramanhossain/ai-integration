@@ -66,11 +66,29 @@ export function decrypt(v: string): string {
   return Buffer.concat([d.update(Buffer.from(data, "base64")), d.final()]).toString("utf8");
 }
 
-function isSecret(type: CredType, key: string): boolean {
+// Geheim? Vaste velden per type; bij plugins wat de plugindefinitie als geheim markeert
+// (authenticatie en eigen velden); verder op naam (wachtwoord, token, sleutel, connection string…).
+const SECRET_NAME = /pass|secret|token|key|signature|authorization|credential|connectionstring|webhookurl|dsn/i;
+function pluginSecretKeys(pluginId: string | undefined): Set<string> {
+  const out = new Set<string>(["accessToken", "refreshToken"]);
+  if (!pluginId) return out;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { plugins } = require("../plugins/registry") as typeof import("../plugins/registry");
+  const def = plugins.get(pluginId);
+  if (!def) return out;
+  const a = def.auth as { type: string; fields?: Array<{ key: string; secret?: boolean }> };
+  if (a.type === "bearer") out.add("token");
+  if (a.type === "basic") out.add("password");
+  if (a.type === "apiKey") out.add("apiKey");
+  if (a.type === "oauth2" || a.type === "oauth2-client") out.add("clientSecret");
+  for (const f of [...(a.fields || []), ...((def.fields || []) as Array<{ key: string; secret?: boolean }>)]) if (f.secret) out.add(f.key);
+  return out;
+}
+function isSecret(type: CredType, key: string, plugin?: string): boolean {
+  if (type === "plugin" && pluginSecretKeys(plugin).has(key)) return true;
   const f = CRED_TYPES[type]?.fields.find((x) => x.key === key);
   if (f) return Boolean(f.secret);
-  // generic: velden met typische geheime namen versleutelen
-  return /pass|secret|token|key/i.test(key);
+  return SECRET_NAME.test(key);
 }
 
 class Credentials {
@@ -79,6 +97,13 @@ class Credentials {
   async hydrate(): Promise<void> {
     for (const { doc } of await persistence.loadAll("credentials")) {
       const c = doc as Credential;
+      // Eerder onversleuteld opgeslagen geheimen (bijv. plugin-velden) alsnog versleutelen.
+      let changed = false;
+      for (const env of Object.keys(c.values || {}) as EnvName[]) {
+        const v = c.values[env] as Record<string, string> | undefined;
+        for (const [k, val] of Object.entries(v || {})) if (val && !String(val).startsWith("enc:v1:") && isSecret(c.type, k, c.plugin)) { v![k] = encrypt(String(val)); changed = true; }
+      }
+      if (changed) persistence.put("credentials", c.name, c);
       this.items.set(c.name, c);
     }
   }
@@ -89,7 +114,7 @@ class Credentials {
     for (const env of ENVIRONMENTS) {
       const v = c.values[env];
       if (!v) continue;
-      values[env] = Object.fromEntries(Object.entries(v).map(([k, val]) => [k, isSecret(c.type, k) ? (val ? MASK : "") : val]));
+      values[env] = Object.fromEntries(Object.entries(v).map(([k, val]) => [k, isSecret(c.type, k, c.plugin) ? (val ? MASK : "") : val]));
     }
     const connected = c.type === "plugin" ? ENVIRONMENTS.filter((e) => c.values[e]?.accessToken) : undefined;
     return { name: c.name, type: c.type, plugin: c.plugin, connected, typeLabel: CRED_TYPES[c.type]?.label, description: c.description, envs: ENVIRONMENTS.filter((e) => c.values[e] && Object.keys(c.values[e]!).length), values, updatedAt: c.updatedAt };
@@ -117,7 +142,7 @@ class Credentials {
       const merged: Record<string, string> = {};
       for (const [k, raw] of Object.entries(incoming)) {
         const v = String(raw ?? "");
-        if (isSecret(input.type, k)) {
+        if (isSecret(input.type, k, input.plugin)) {
           if (v === MASK) { if (old[k]) merged[k] = old[k]; }
           else if (v) merged[k] = encrypt(v);
         } else if (v !== "") merged[k] = v;

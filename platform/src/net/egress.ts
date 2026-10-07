@@ -16,10 +16,27 @@ function v4(ip: string): number[] | null {
   const m = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   return m ? m.slice(1).map(Number) : null;
 }
+// IPv6 naar 8 groepen van 16 bits (null bij ongeldig).
+function v6groups(ip: string): number[] | null {
+  let s = ip;
+  const dot = s.match(/^(.*:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (dot) { const a = v4(dot[2]); if (!a) return null; s = `${dot[1]}${((a[0] << 8) | a[1]).toString(16)}:${((a[2] << 8) | a[3]).toString(16)}`; }
+  const parts = s.split("::");
+  if (parts.length > 2) return null;
+  const head = parts[0] ? parts[0].split(":") : [], tail = parts.length === 2 && parts[1] ? parts[1].split(":") : [];
+  const fill = parts.length === 2 ? 8 - head.length - tail.length : 0;
+  const all = [...head, ...Array(Math.max(0, fill)).fill("0"), ...tail];
+  if (all.length !== 8 || all.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return all.map((g) => parseInt(g, 16));
+}
 function classify(ipRaw: string): "blocked" | "private" | "public" {
-  let ip = ipRaw.toLowerCase();
-  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) ip = mapped[1];
+  let ip = ipRaw.toLowerCase().replace(/%.*$/, "");
+  if (ip.includes(":")) {
+    const g = v6groups(ip);
+    if (!g) return "blocked";
+    const embedded = (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && (g[5] === 0xffff || g[5] === 0)) || (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0));
+    if (embedded && !(g[5] === 0 && g[6] === 0 && g[7] <= 1)) ip = `${g[6] >> 8}.${g[6] & 255}.${g[7] >> 8}.${g[7] & 255}`;
+  }
   const a = v4(ip);
   if (a) {
     const [x, y] = a;

@@ -220,6 +220,10 @@ export async function executePlugin(call: PluginCall): Promise<{ status: number;
   }
   // $uuid en $now zijn altijd beschikbaar in sjablonen (bv. een transactie-ID per aanvraag)
   const vars: Vars = { ...values, ...params, $uuid: randomUUID(), $now: new Date().toISOString() };
+  // Geheimen (sleutels, wachtwoorden, tokens) nooit in foutmeldingen terug laten komen.
+  const secrets = Object.entries(values).filter(([k, v]) => typeof v === "string" && v.length >= 6 && !/^https?:\/\//.test(v) && !/^(url|host|region|user|username|email|account|tenant|database|domain|subdomain|instance|baseurl)$/i.test(k)).map(([, v]) => String(v)).sort((a, b) => b.length - a.length);
+  const redact = (m: string) => secrets.reduce((acc, sec) => acc.split(sec).join("•••"), m);
+  try {
   const credKey = `${env}:${call.credential ?? "-"}`;
 
   // Geen HTTP (database, broker, LDAP, IMAP, SSH, JSON-RPC): via een driver
@@ -275,8 +279,18 @@ export async function executePlugin(call: PluginCall): Promise<{ status: number;
   if (a.type === "aws") { signAws(op.method, url, headers, body ?? "", a.service, values); delete headers.host; }
   if (a.type === "custom") await applySigner(a.signer, { def, values, method: op.method, url, headers, body, credKey });
 
-  const res = await safeFetch(url, { method: op.method, headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  // Geen ".." in padparameters of koppelingsvelden (zou naar een ander endpoint kunnen wijzen).
+  for (const v of [...Object.values(params), ...Object.values(values)]) if (typeof v === "string" && /(^|[\/\\])\.\.([\/\\]|$)/.test(v)) throw new Error(`${def.name}: '..' is niet toegestaan in parameters`);
+  const res = await safeFetch(url, { method: op.method, headers, body, signal: AbortSignal.timeout(TIMEOUT_MS) }).catch((err: Error & { cause?: { code?: string } }) => {
+    if (err.name === "TimeoutError" || err.name === "AbortError") throw new Error(`${def.name}: geen antwoord van ${url.host} binnen ${Math.round(TIMEOUT_MS / 1000)} s`);
+    if (err.message === "fetch failed") throw new Error(`${def.name}: ${url.host} niet bereikbaar${err.cause?.code ? ` (${err.cause.code})` : ""}`);
+    throw err;
+  });
+  // Maximaal 10 MB per antwoord (bescherming tegen geheugengebruik).
+  const MAX = 10 * 1024 * 1024;
+  if (Number(res.headers.get("content-length") || 0) > MAX) throw new Error(`${def.name}: antwoord groter dan 10 MB`);
   const text = await res.text();
+  if (text.length > MAX) throw new Error(`${def.name}: antwoord groter dan 10 MB`);
   const ct = res.headers.get("content-type") || "";
   let data: unknown = text || { ok: true, status: res.status };
   if (text && (/json/i.test(ct) || /^[[{]/.test(text.trim()))) { try { data = JSON.parse(text); } catch { /* tekst */ } }
@@ -290,6 +304,8 @@ export async function executePlugin(call: PluginCall): Promise<{ status: number;
   let out = op.output ? getPath(data, op.output) : data;
   if (op.transform === "sheet-rows") out = sheetRows(data);
   if (op.transform === "feed") out = feedItems(data);
-  const safeUrl = url.toString().replace(/([?&](?:key|token|api_key|apikey|api_token|access_token|appid|auth|auth_token)=)[^&]+/gi, "$1•••").replace(/\/bot\d+:[\w-]+/, "/bot•••");
-  return { status: res.status, data: out === undefined ? (res.status === 204 || !text ? { ok: true, status: res.status } : out) : out, request: { method: op.method, url: safeUrl } };
+  const safeUrl = url.toString().replace(/([?&](?:key|token|api_key|apikey|api_token|access_token|access_key|appid|auth|auth_token|signature|sig|secret|client_secret|password|pass)=)[^&]+/gi, "$1•••").replace(/\/bot\d+:[\w-]+/, "/bot•••");
+  return { status: res.status, data: out === undefined ? (res.status === 204 || !text ? { ok: true, status: res.status } : out) : out, request: { method: op.method, url: safeUrl } };  } catch (err) {
+    throw new Error(redact((err as Error).message));
+  }
 }

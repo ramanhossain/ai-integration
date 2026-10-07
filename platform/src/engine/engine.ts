@@ -34,7 +34,9 @@ export function effectiveConnections(def: Integration): Connection[] {
 // Grote payloads inkorten in het run-record (houdt de opslag klein).
 function clip(v: unknown): unknown {
   const s = JSON.stringify(v ?? null);
-  return s.length > 4000 ? { _truncated: true, preview: s.slice(0, 4000) } : v;
+  // Ruim genoeg voor gewone API-antwoorden (bijv. 10 gebruikers of 100 posts); alleen echt
+  // grote berichten worden in de run ingekort (de data zelf loopt wel volledig door).
+  return s.length > 64000 ? { _truncated: true, preview: s.slice(0, 64000) } : v;
 }
 
 const MAX_NODE_EXECUTIONS = 500; // bescherming tegen oneindige lussen
@@ -75,11 +77,13 @@ class Engine {
         return { out: await handler(), tries: i + 1 };
       } catch (err) {
         lastErr = err;
+        if ((err as { noRetry?: boolean }).noRetry) { (err as { tries?: number }).tries = i + 1; break; } // definitieve fout (bijv. 404): niet opnieuw proberen
         if (i < attempts && backoff === "exponential") {
           await new Promise((r) => setTimeout(r, Math.min(50 * 2 ** i, 400)));
         }
       }
     }
+    if (lastErr && typeof lastErr === "object" && !(lastErr as { tries?: number }).tries) (lastErr as { tries?: number }).tries = attempts + 1;
     throw lastErr;
   }
 
@@ -164,7 +168,7 @@ class Engine {
         for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload: out });
       } catch (err) {
         error = (err as Error).message;
-        steps.push({ id: step.id, type: step.type, status: "failed", ms: Date.now() - t0, attempts: retries + 1, error, input: clip(inPayload) });
+        steps.push({ id: step.id, type: step.type, status: "failed", ms: Date.now() - t0, attempts: (err as { tries?: number }).tries ?? retries + 1, error, input: clip(inPayload) });
         status = "error";
         if (RETRYABLE.has(step.type) && onExhaust === "dead-letter-queue") deadLettered = true;
         break;

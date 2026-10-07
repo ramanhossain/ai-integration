@@ -213,9 +213,14 @@ function amDeploy(d, versionPref) {
     <div class="cb"><label class="xf-l">Naar omgeving</label>
       <div class="dp-envs" role="radiogroup">${targets.map((e) => `<label class="dp-env"><input type="radio" name="amd-env" value="${e.id}" ${e.id === env ? "checked" : ""}><span class="env ${e.id}">${e.label}</span><span class="faint">nu ${d.deployed[e.id] ? esc(d.deployed[e.id].version) : "—"}</span></label>`).join("")}</div>
       <label class="xf-l" for="amd-v">Versie</label><select class="f" id="amd-v">${d.versions.map((v) => `<option value="${esc(v.version)}" ${v.version === (versionPref || d.version) ? "selected" : ""}>${esc(v.version)}${v.published ? " (gepubliceerd)" : ""}${v.note ? " — " + esc(v.note) : ""}</option>`).join("")}</select>
+      ${targets.some((e) => d.deployed[e.id]) ? `<div class="am-undeploy"><span class="faint">Van een omgeving halen:</span> ${targets.filter((e) => d.deployed[e.id]).map((e) => `<button type="button" class="btn sm sec" data-am-undeploy="${e.id}" data-ico-done>${ic("x", 12)}<span>${e.label}</span></button>`).join(" ")}</div>` : ""}
       <div class="hint" style="margin-top:8px">Een werkversie wordt bij de deploy gepubliceerd als nieuwe majorversie en is daarna onveranderlijk. Dit wordt een goedkeuringsverzoek (PROD: vier-ogen). Gekoppelde processen moeten ook op die omgeving staan, en er moet beleid zijn voor de omgeving.</div></div>
     <div class="cf"><button class="btn sec" data-close>Annuleren</button><button class="btn" id="amd-go" data-ico-done>${ic("rocket")}<span>Deploy aanvragen</span></button></div>`);
   document.querySelectorAll('input[name="amd-env"]').forEach((r) => r.addEventListener("change", () => { env = r.value; }));
+  document.querySelectorAll("[data-am-undeploy]").forEach((b) => b.addEventListener("click", () => {
+    const e = b.dataset.amUndeploy;
+    confirmModal(`API van ${e.toUpperCase()} halen?`, `<b>${esc(d.title)}</b> is daarna niet meer bereikbaar op ${e.toUpperCase()}. De versies blijven bewaard; je kunt later opnieuw deployen.`, async () => { await api(`/api/v1/apim/apis/${encodeURIComponent(d.id)}/deploy/${e}`, { method: "DELETE" }); toast(`API van ${e.toUpperCase()} gehaald`); render(); }, "Van omgeving halen");
+  }));
   document.getElementById("amd-go").addEventListener("click", async () => {
     try {
       const a = await api(`/api/v1/apim/apis/${encodeURIComponent(d.id)}/deploy`, { body: { env, version: document.getElementById("amd-v").value } });
@@ -290,7 +295,7 @@ async function amPolicies(main) {
 
 async function amPolicyModal(p) {
   const [keys, issuers, endpoints] = await Promise.all([api("/api/v1/apim/keys"), api("/api/v1/apim/issuers"), api("/api/v1/apim/endpoints")]);
-  const st = p ? JSON.parse(JSON.stringify(p)) : { name: "", description: "", tags: [], enabled: true, envs: ["dev"], endpoints: [{ method: "ALL", path: endpoints[0] ? endpoints[0].path.split("/").slice(0, 3).join("/") : "/" }], identities: [{ type: "apikey", name: "API-sleutel", keyName: "x-api-key", location: "header", keys: [] }], logging: { fields: ["identity"], bodyMaxKb: 1, ip: "client" }, cors: { origins: [], credentials: false }, ipAllow: [] };
+  const st = p ? JSON.parse(JSON.stringify(p)) : { name: "", description: "", tags: [], enabled: true, envs: ["dev"], endpoints: [{ method: "ALL", path: endpoints[0] ? endpoints[0].basePath || endpoints[0].path : "/" }], identities: [{ type: "apikey", name: "API-sleutel", keyName: "x-api-key", location: "header", keys: [] }], logging: { fields: ["identity"], bodyMaxKb: 1, ip: "client" }, cors: { origins: [], credentials: false }, ipAllow: [] };
   st.cors = st.cors || { origins: [], credentials: false };
   const FIELDS = [["identity", "Identiteit"], ["query", "Queryparameters"], ["requestHeaders", "Request-headers"], ["responseHeaders", "Response-headers"], ["errorBody", "Body bij fout"], ["requestBody", "Request-body"], ["responseBody", "Response-body"]];
   const thr = (t, a) => `<span class="am-thr"><input class="f" type="number" min="0" ${a}="limit" value="${t ? t.limit : ""}" placeholder="max" aria-label="Maximum aantal aanroepen"> / <input class="f" type="number" min="1" ${a}="window" value="${t ? t.windowSec : 60}" aria-label="Venster in seconden"> s</span>`;
@@ -358,7 +363,7 @@ async function amPolicyModal(p) {
       if (it.type === "oauth") { it.issuers = [...el.querySelectorAll("[data-iss]")].filter((x) => x.checked).map((x) => x.dataset.iss); it.rules = [...el.querySelectorAll("[data-rule]")].map((r) => ({ claim: r.querySelector('[data-r="claim"]').value, op: r.querySelector('[data-r="op"]').value, value: r.querySelector('[data-r="value"]').value })); }
     });
     st.logging = { fields: [...box.querySelectorAll("[data-log]")].filter((x) => x.checked).map((x) => x.dataset.log), bodyMaxKb: Number(box.querySelector("#pp-kb").value), ip: box.querySelector("#pp-ip").value };
-    st.cors = { origins: box.querySelector("#pp-cors").value.split("\n").map((x) => x.trim()).filter(Boolean), credentials: box.querySelector("#pp-cred").checked };
+    st.cors = { ...(st.cors || {}), origins: box.querySelector("#pp-cors").value.split("\n").map((x) => x.trim()).filter(Boolean), credentials: box.querySelector("#pp-cred").checked };
     st.ipAllow = box.querySelector("#pp-ips").value.split("\n").map((x) => x.trim()).filter(Boolean);
   };
   draw();

@@ -55,6 +55,9 @@ async function fetchImage(url: string): Promise<Logo | null> {
   if (!buf.length || buf.length > 300_000) return null;
   const isIco = type.includes("icon") || url.endsWith(".ico");
   if (!type.startsWith("image/") && !isIco) return null;
+  // Geen HTML-pagina's die zich als icoon voordoen.
+  const head = buf.subarray(0, 64).toString("utf8").trimStart().toLowerCase();
+  if (head.startsWith("<!doctype") || head.startsWith("<html") || (head.startsWith("<") && !head.startsWith("<svg") && !head.startsWith("<?xml"))) return null;
   return { type: isIco && !type.startsWith("image/") ? "image/x-icon" : type, body: buf };
 }
 
@@ -80,6 +83,8 @@ async function fromWebsite(site: string): Promise<Logo | null> {
 }
 
 export async function pluginLogo(id: string): Promise<Logo | null> {
+  // Alleen bestaande plugins (geen cachebestanden voor willekeurige id's).
+  if (!CATALOG.some((c) => c.id === id) && !plugins.get(id)) return null;
   if (memo.has(id)) return memo.get(id)!;
   if (pending.has(id)) return pending.get(id)!;
   const job = (async (): Promise<Logo | null> => {
