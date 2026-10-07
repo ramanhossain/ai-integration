@@ -14,12 +14,18 @@ import { bus } from "../events/bus";
 import { audit } from "../audit/auditLog";
 import { parseCron } from "./cron";
 import { scoped, orgPathPrefix } from "../tenancy/context";
+import { apim } from "../apim/apim";
 
 // Triggers draaien per omgeving waar een proces gedeployed is (een
 // proces op PROD reageert op de PROD-trigger met de PROD-koppelingen). De manager
 // start/stopt ze automatisch bij elke deployment. Webhooks worden per request opgezocht.
 
 type Trig = Record<string, unknown> & { type: string };
+// Foutdetails (interne hosts, responses van achterliggende systemen) alleen op DEV naar de
+// aanroeper; elders een algemene melding — de details staan in de run (Procesinstanties).
+export function publicError(env: EnvName, err: string | undefined): string {
+  return env === "dev" ? err || "Proces gefaald" : "Proces gefaald; zie de run voor details";
+}
 
 interface ActiveTrigger {
   key: string;
@@ -218,7 +224,10 @@ class TriggerManager {
       if (!ok) return { status: 401, body: { error: "Ongeldige of ontbrekende API-key" } };
     }
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? (req.body as Record<string, unknown>) : req.body === undefined ? {} : { body: req.body };
-    const headers = Object.fromEntries(Object.entries(req.headers).filter(([h]) => !/authorization|cookie|api-key/i.test(h)));
+    // Geheime headers (ook de ingestelde sleutelheader van deze webhook) niet in de run bewaren.
+    let keyHeader = "";
+    if (trig.auth === "apikey") { try { keyHeader = String(credentials.resolve(String(trig.credential || ""), env).values.header || "x-api-key").toLowerCase(); } catch { /* geen koppeling */ } }
+    const headers = Object.fromEntries(Object.entries(req.headers).filter(([h]) => !/authorization|cookie|api-key|apikey|token|secret/i.test(h) && h.toLowerCase() !== keyHeader));
     const input = { ...body, _trigger: { type: "webhook", env, method: req.method, path, query: req.query, headers, firedAt: new Date().toISOString() } };
     const st = this.webhookStats.get(k(env, def.integration)) ?? { fires: 0, errors: 0 };
     this.webhookStats.set(k(env, def.integration), st);
@@ -236,7 +245,7 @@ class TriggerManager {
     if (run.status === "success" && custom) return { status: Number(custom.status || 200), body: custom.body ?? null };
     return run.status === "success"
       ? { status: 200, body: { runId: run.id, status: run.status, output: run.output } }
-      : { status: 500, body: { runId: run.id, status: run.status, error: run.error } };
+      : { status: 500, body: { runId: run.id, status: run.status, error: publicError(env, run.error) } };
   }
 
   // ---------- API-endpoints (API-management) ----------
@@ -247,6 +256,7 @@ class TriggerManager {
       const def = deployments.getActiveDefinition(s.integration, env);
       const t = def?.trigger as Trig | undefined;
       if (!def || t?.type !== "api" || t.apiId) continue; // via API-beheer gekoppeld: alleen via de gateway
+      if (apim.linkedProcesses().has(def.integration)) continue; // ook bestaande processen die in API-beheer gekoppeld zijn
       if (String(t.method || "GET").toUpperCase() !== method.toUpperCase()) continue;
       const tpl = String(t.path || def.integration).replace(/^\/|\/$/g, "").split("/");
       if (tpl.length !== want.length) continue;
@@ -289,7 +299,7 @@ class TriggerManager {
     st.lastRunId = run.id; st.lastStatus = run.status;
     if (run.status !== "success") { st.errors++; st.lastError = run.error; }
     bus.publish("trigger.fired", { integration: def.integration, env, type: "api", runId: run.id, status: run.status });
-    if (run.status !== "success") return { status: 500, body: { error: run.error, runId: run.id } };
+    if (run.status !== "success") return { status: 500, body: { error: publicError(env, run.error), runId: run.id } };
     const custom = run.output?._response as { status?: number; body?: unknown } | undefined;
     if (custom) return { status: Number(custom.status || 200), body: custom.body ?? null };
     // Schoon antwoord: interne velden (_trigger, _branch, _logs …) en de invoer-metadata eruit.

@@ -155,6 +155,8 @@ const nameList = (keys) => `<ul class="nlist">${keys.slice(0, 12).map((k) => `<l
 // ---------- routing ----------
 function route() {
   if (window.AIP_AUTH && !window.AIP_ME) return; // eerst inloggen
+  // Een open venster hoort bij de vorige pagina (anders werkt het op het verkeerde proces).
+  if (!$("#modal").classList.contains("hide")) closeModal();
   const [view, ...rest] = (location.hash.replace(/^#/, "") || "dashboard").split("/");
   S.view = VIEWS[view] ? view : "dashboard";
   S.param = rest.length ? decodeURIComponent(rest.join("/")) : null;
@@ -343,11 +345,9 @@ const DEFAULT_TEST_INPUT = JSON.stringify({ orderId: "TEST-ORDER-93822", id: "TE
 const NEW_DEF = () => ({
   integration: "NieuwProces",
   trigger: { type: "manual" },
-  steps: [
-    { id: "validate", type: "validate", name: "Validatie", config: { required: [] } },
-    { id: "end", type: "end", name: "Einde", config: {} }
-  ],
-  connections: [{ from: "start", to: "validate" }, { from: "validate", to: "end" }],
+  // Een nieuw proces begint alleen met het startevent (de trigger); stappen voeg je zelf toe.
+  steps: [],
+  connections: [],
   retry: { attempts: 3, backoff: "exponential", onExhaust: "dead-letter-queue" },
   monitoring: { enabled: true },
   agents: { monitoring: true, testing: true, security: true },
@@ -366,7 +366,13 @@ VIEWS.editor = async (main) => {
   if (S.readonlyView) return renderEnvView(main, name);
   if (!S.editor || S.editor.name !== name) {
     let E;
-    if (name === "new" || !name) E = { name, isNew: true, def: NEW_DEF(), dirty: true, state: null };
+    if (name === "new" || !name) {
+      // Standaardnaam die nog niet bestaat (NieuwProces, NieuwProces2, …).
+      const taken = new Set((await api("/api/v1/integrations").catch(() => [])).map((x) => x.integration));
+      const def0 = NEW_DEF();
+      for (let i = 2; taken.has(def0.integration); i++) def0.integration = `NieuwProces${i}`;
+      E = { name, isNew: true, def: def0, dirty: true, state: null };
+    }
     else {
       const [def, state] = await Promise.all([
         api(`/api/v1/integrations/${encodeURIComponent(name)}`),
@@ -962,7 +968,10 @@ async function saveEditor() {
   if (problems.length) return toast(problems[0], true);
   const note = await askNote(E.isNew);
   if (note === null) return;
-  const saved = await api(`/api/v1/integrations${note ? `?note=${encodeURIComponent(note)}` : ""}`, { body: { ...cleanDef(E.def), owner: who() } });
+  const qs = new URLSearchParams();
+  if (note) qs.set("note", note);
+  if (E.isNew) qs.set("create", "true");
+  const saved = await api(`/api/v1/integrations${qs.toString() ? `?${qs}` : ""}`, { body: { ...cleanDef(E.def), owner: who() } });
   if (E.isNew) localSet(`aip.test.${saved.integration}`, E.testInput);
   toast(`Opgeslagen als v${saved.version} op DEV`);
   S.editor = null;
@@ -1461,4 +1470,9 @@ loadPluginList();
 startEvents();
 route();
 setInterval(refreshStatus, 15000);
+});
+
+// Waarschuwen bij sluiten/verversen met niet-opgeslagen wijzigingen in de editor.
+window.addEventListener("beforeunload", (e) => {
+  if (S.editor && S.editor.dirty && S.view === "editor") { e.preventDefault(); e.returnValue = ""; }
 });

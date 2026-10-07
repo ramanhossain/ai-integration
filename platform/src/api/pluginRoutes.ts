@@ -92,7 +92,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Querystring: { code?: string; state?: string; error?: string; error_description?: string } }>("/api/v1/oauth/callback", { schema: { tags: ["plugins"], summary: "OAuth2-callback (redirect-URI)" } }, async (req, reply) => {
     const page = (ok: boolean, msg: string) => reply.type("text/html; charset=utf-8").send(`<!doctype html><meta charset="utf-8"><title>AIP · ${ok ? "Verbonden" : "Mislukt"}</title>
       <body style="font-family:system-ui;padding:40px;color:#1b2536"><h2>${ok ? "✓ Verbonden" : "✕ Verbinden mislukt"}</h2><p>${esc(msg)}</p><p style="color:#8b97ab">Je kunt dit venster sluiten.</p>
-      <script>try{window.opener&&window.opener.postMessage({type:"aip-oauth",ok:${ok}},"*")}catch(e){};${ok ? "setTimeout(()=>window.close(),1500)" : ""}</script></body>`);
+      <script>try{window.opener&&window.opener.postMessage({type:"aip-oauth",ok:${ok}},location.origin)}catch(e){};${ok ? "setTimeout(()=>window.close(),1500)" : ""}</script></body>`);
     const st = req.query.state ? states.get(req.query.state) : undefined;
     if (!st) return page(false, "Onbekende of verlopen aanvraag. Start het verbinden opnieuw.");
     states.delete(req.query.state!);

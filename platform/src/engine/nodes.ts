@@ -3,7 +3,7 @@
 // Deterministisch — geen LLM in de runtime.
 
 import type { EnvName } from "../domain/environments";
-import { getPath, setPath, tpl, deepTpl, globToRegex, sleep } from "../connectors/util";
+import { getPath, setPath, tpl, deepTpl, globToRegex, sleep, missingVars } from "../connectors/util";
 import { csvParse, csvGenerate, xmlParse, xmlBuild, runCode } from "../connectors/formats";
 import { openFs } from "../connectors/files";
 import { broker } from "../connectors/queue";
@@ -153,8 +153,11 @@ const nodes: Record<string, NodeHandler> = {
   // HTTP-aanroep. Zonder URL gesimuleerd met realistische latency (handig op DEV/TEST).
   call: async (payload, step, ctx) => {
     const c = step.config ?? {};
+    // Ontbrekende {{variabelen}} in de URL niet stil leeg maken (zou een andere URL aanroepen).
+    const missing = missingVars(c.url, payload);
+    if (missing.length) throw Object.assign(new Error(`URL gebruikt ${missing.map((m) => `{{${m}}}`).join(", ")}, maar dat veld staat niet in het bericht`), { noRetry: true });
     const url = tpl(c.url, payload, ctx.env);
-    const method = String(c.method || "POST").toUpperCase();
+    const method = String(c.method || "POST").toUpperCase(); // zonder methode: POST (berichten versturen)
     const target = String(c.target || "_call");
     if (!url) {
       const latency = 20 + Math.round(Math.random() * 90);
@@ -173,11 +176,16 @@ const nodes: Record<string, NodeHandler> = {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), Number(c.timeoutMs || 30000));
     try {
-      const res = await safeFetch(u, { method, headers, body, signal: ctrl.signal });
+      const res = await safeFetch(u, { method, headers, body, signal: ctrl.signal }).catch((err: Error & { cause?: { code?: string } }) => {
+        if (ctrl.signal.aborted) throw new Error(`${method} ${u.host}: geen antwoord binnen ${Number(c.timeoutMs || 30000)} ms`);
+        if (err.message === "fetch failed") throw new Error(`${method} ${u.host}: niet bereikbaar${err.cause?.code ? ` (${err.cause.code})` : ""}`);
+        throw err;
+      });
       const text = await res.text();
       let data: unknown = text;
       try { data = JSON.parse(text); } catch { /* tekst */ }
-      if (!res.ok && c.failOnError !== false) throw new Error(`${method} ${u.host}${u.pathname} -> ${res.status} ${String(text).slice(0, 200)}`);
+      // 4xx (behalve 408/429) is definitief: niet opnieuw proberen.
+      if (!res.ok && c.failOnError !== false) throw Object.assign(new Error(`${method} ${u.host}${u.pathname} -> ${res.status} ${String(text).slice(0, 200)}`), { noRetry: res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 });
       return setPath(payload, target, { status: res.status, body: data });
     } finally {
       clearTimeout(timer);

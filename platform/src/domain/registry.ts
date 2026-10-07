@@ -57,7 +57,36 @@ class Registry {
   }
 
   // Opslaan = nieuwe versie op DEV. Promotie naar test/acc/prod loopt via approvals.
-  upsertIntegration(input: Integration, extra: { note?: string; restoredFrom?: number } = {}): Integration {
+  // Controles vóór een nieuwe versie: geen stil overschrijven bij "nieuw", verbindingen naar
+  // bestaande stappen, en een webhook-/API-pad mag maar bij één proces horen.
+  private check(input: Integration, create: boolean): void {
+    const fail = (msg: string, code = 400) => { throw Object.assign(new Error(msg), { statusCode: code }); };
+    if (create && this.integrations.has(input.integration)) fail(`Er bestaat al een proces met de naam '${input.integration}'. Kies een andere naam.`, 409);
+    const steps = (input.steps || []) as Array<{ id: string }>;
+    const ids = new Set(steps.map((s) => s.id));
+    const conns = ((input as unknown as { connections?: Array<{ from: string; to: string }> }).connections) || [];
+    for (const c of conns) {
+      if ((c.from !== "start" && !ids.has(c.from)) || !ids.has(c.to)) fail(`Verbinding ${c.from} → ${c.to} verwijst naar een stap die niet bestaat.`);
+    }
+    const t = input.trigger as { type?: string; path?: string; method?: string; apiId?: string } | undefined;
+    const norm = (d: Integration, tr: { path?: string }) => String(tr.path || d.integration).replace(/^\/+|\/+$/g, "");
+    if (t && (t.type === "webhook" || (t.type === "api" && !t.apiId))) {
+      const mine = norm(input, t), myMethod = String(t.method || (t.type === "api" ? "GET" : "POST")).toUpperCase();
+      for (const other of this.integrations.values()) {
+        if (other.integration === input.integration) continue;
+        const o = other.trigger as { type?: string; path?: string; method?: string; apiId?: string } | undefined;
+        if (!o || o.type !== t.type || o.apiId) continue;
+        if (norm(other, o) !== mine) continue;
+        if (t.type === "api" && String(o.method || "GET").toUpperCase() !== myMethod) continue;
+        fail(`${t.type === "webhook" ? "Webhook-pad" : "API-pad"} '/${mine}' wordt al gebruikt door proces '${other.integration}'. Kies een ander pad.`, 409);
+      }
+    }
+  }
+
+  upsertIntegration(input: Integration, extra: { note?: string; restoredFrom?: number; create?: boolean } = {}): Integration {
+    this.check(input, Boolean(extra.create));
+    const { create: _c, ...meta } = extra;
+    extra = meta;
     const state = deployments.recordNewVersion(input, extra);
     const def: Integration = { ...input, version: String(state.latestVersion) };
     this.integrations.set(def.integration, def);

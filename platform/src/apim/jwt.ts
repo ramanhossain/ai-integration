@@ -67,7 +67,8 @@ export async function verifyJwt(token: string, issuers: Issuer[]): Promise<{ cla
   if (!ok) throw new Error("Handtekening ongeldig");
   const now = Math.floor(Date.now() / 1000);
   const exp = Number(jwt.payload.exp), nbf = Number(jwt.payload.nbf);
-  if (Number.isFinite(exp) && now > exp + 60) throw new Error("Token verlopen");
+  if (!Number.isFinite(exp)) throw new Error("Token zonder vervaldatum (exp) wordt niet geaccepteerd");
+  if (now > exp + 60) throw new Error("Token verlopen");
   if (Number.isFinite(nbf) && now + 60 < nbf) throw new Error("Token nog niet geldig");
   if (issuer.audience) {
     const aud = jwt.payload.aud;

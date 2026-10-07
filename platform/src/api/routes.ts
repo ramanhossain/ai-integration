@@ -74,19 +74,20 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // ---- Integraties (Integration-as-Code) ----
-  app.post<{ Body: Integration; Querystring: { note?: string } }>(
+  app.post<{ Body: Integration; Querystring: { note?: string; create?: string } }>(
     "/api/v1/integrations",
     {
       schema: {
         tags: ["integrations"],
         summary: "Opslaan als nieuwe versie op DEV (optioneel met wijzigingsnotitie ?note=)",
-        querystring: { type: "object", properties: { note: { type: "string", maxLength: 500 } } },
+        querystring: { type: "object", properties: { note: { type: "string", maxLength: 500 }, create: { type: "string", enum: ["true", "false"] } } },
         body: { $ref: "https://aip.local/schemas/integration.json#" }
       }
     },
     async (req) => {
       const note = (req.query.note ?? "").trim();
-      return registry.upsertIntegration(req.body, note ? { note } : {});
+      // create=true: nieuw proces — weigeren als de naam al bestaat (niet stil overschrijven).
+      return registry.upsertIntegration(req.body, { ...(note ? { note } : {}), create: req.query.create === "true" });
     }
   );
   app.get("/api/v1/integrations", { schema: { tags: ["integrations"] } }, async () => registry.listIntegrations());

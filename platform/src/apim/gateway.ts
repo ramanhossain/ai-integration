@@ -1,6 +1,7 @@
 import type { EnvName } from "../domain/environments";
 import { deployments } from "../domain/deployments";
 import { runDeployed } from "../runtime/dispatch";
+import { publicError } from "../triggers/manager";
 import { safeFetch } from "../net/egress";
 import { apim, type ApiDoc, type Operation, type Policy, type OpLink } from "./apim";
 import { parseJwt, verifyJwt, checkRules, claimValue } from "./jwt";
@@ -17,6 +18,21 @@ const HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade",
 const hdr = (h: Record<string, unknown>, k: string) => { const v = h[k.toLowerCase()]; return Array.isArray(v) ? String(v[0]) : v === undefined ? undefined : String(v); };
 const clip = (s: string, kb: number) => (s.length > kb * 1024 ? s.slice(0, kb * 1024) + "…" : s);
 const asText = (b: unknown) => (b === undefined || b === null ? "" : Buffer.isBuffer(b) ? b.toString("utf8") : typeof b === "string" ? b : JSON.stringify(b));
+// Namen van headers en queryparameters die geheimen bevatten: standaard plus de sleutelnamen
+// uit het beleid. Die gaan nooit naar processen, doelsystemen of de monitoring.
+interface Sensitive { headers: Set<string>; query: Set<string> }
+function sensitiveOf(p: Policy | undefined): Sensitive {
+  const headers = new Set(["authorization", "cookie", "proxy-authorization", "x-api-key", "apikey", "api-key"]);
+  const query = new Set(["api_key", "apikey", "access_token", "token", "key"]);
+  for (const i of p?.identities || []) if (i.type === "apikey") (i.location === "query" ? query : headers).add(i.keyName.toLowerCase());
+  return { headers, query };
+}
+function stripQuery(raw: string, names: Set<string>): string {
+  if (!raw) return raw;
+  const q = new URLSearchParams(raw);
+  for (const k of [...q.keys()]) if (names.has(k.toLowerCase())) q.delete(k);
+  return q.toString();
+}
 // Geheimen nooit in de monitoring: sleutels/tokens gemaskeerd.
 const masked = (h: Record<string, string>) => Object.fromEntries(Object.entries(h).map(([k, v]) => [k, /key|token|secret|signature|password/i.test(k) ? "•••" : v]));
 const plainHeaders = (h: Record<string, unknown>, drop: string[] = []) => Object.fromEntries(Object.entries(h).filter(([k]) => !drop.includes(k.toLowerCase())).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v)]));
@@ -69,7 +85,8 @@ export async function handleGateway(env: EnvName, req: GwRequest): Promise<GwRes
   const policy = hit?.policy;
   const fields = new Set(policy?.logging.fields || ["identity"]);
   const kb = policy?.logging.bodyMaxKb || 1;
-  const base = { env, method: req.method, path: fullPath, apiId: doc.id, api: doc.title, operation: op?.operationId || op?.key, origin, policy: policy?.name, ip: ipOf(req, policy?.logging.ip ?? "client"), query: fields.has("query") && req.rawQuery ? req.rawQuery.slice(0, 1000) : undefined, reqHeaders: fields.has("requestHeaders") ? masked(plainHeaders(req.headers, ["authorization", "cookie", "proxy-authorization"])) : undefined, reqBody: fields.has("requestBody") ? clip(asText(req.body), kb) : undefined };
+  const sens = sensitiveOf(policy);
+  const base = { env, method: req.method, path: fullPath, apiId: doc.id, api: doc.title, operation: op?.operationId || op?.key, origin, policy: policy?.name, ip: ipOf(req, policy?.logging.ip ?? "client"), query: fields.has("query") && req.rawQuery ? stripQuery(req.rawQuery, sens.query).slice(0, 1000) || undefined : undefined, reqHeaders: fields.has("requestHeaders") ? masked(plainHeaders(req.headers, [...sens.headers])) : undefined, reqBody: fields.has("requestBody") ? clip(asText(req.body), kb) : undefined };
   const finish = (status: number, body: unknown, extra: Record<string, unknown> = {}, headers: Record<string, string> = {}): GwResponse => {
     const h = { ...corsHeaders(policy, origin), ...headers };
     const text = asText(body);
@@ -128,7 +145,7 @@ export async function handleGateway(env: EnvName, req: GwRequest): Promise<GwRes
   const tEp = apim.throttle(`ep:${env}:${policy.id}:${hit!.endpoint.method}:${hit!.endpoint.path}`, hit!.endpoint.throttle);
   if (!tEp.ok) return finish(429, { error: "Te veel aanvragen voor dit endpoint" }, { outcome: "throttled", identity }, { "retry-after": String(tEp.retryAfter) });
   if (identityKey) {
-    const tId = apim.throttle(`id:${env}:${identityKey}`, idThrottle);
+    const tId = apim.throttle(`id:${env}:${policy.id}:${identityKey}`, idThrottle);
     if (!tId.ok) return finish(429, { error: "Te veel aanvragen" }, { outcome: "throttled", identity }, { "retry-after": String(tId.retryAfter) });
   }
 
@@ -136,8 +153,8 @@ export async function handleGateway(env: EnvName, req: GwRequest): Promise<GwRes
   const link: OpLink | undefined = (op && doc.links[op.key]) || (doc.passthroughAll?.target ? doc.passthroughAll : undefined);
   if (!link || link.mode === "none") return finish(501, { error: `Operatie ${op?.key} is nog niet gekoppeld aan een proces` }, { outcome: "niet gekoppeld", identity });
   try {
-    if (link.mode === "passthrough") return await passthrough(req, doc, op, link, finish, identity);
-    return await runProcess(env, req, op!, params, link.process!, finish, identity);
+    if (link.mode === "passthrough") return await passthrough(req, doc, op, link, finish, identity, sens);
+    return await runProcess(env, req, op!, params, link.process!, finish, identity, sens);
   } catch (err) {
     return finish(502, { error: (err as Error).message }, { outcome: "fout", identity, error: (err as Error).message });
   }
@@ -145,32 +162,36 @@ export async function handleGateway(env: EnvName, req: GwRequest): Promise<GwRes
 
 type Finish = (status: number, body: unknown, extra?: Record<string, unknown>, headers?: Record<string, string>) => GwResponse;
 
-async function runProcess(env: EnvName, req: GwRequest, op: Operation, params: Record<string, string>, name: string, finish: Finish, identity: string): Promise<GwResponse> {
+async function runProcess(env: EnvName, req: GwRequest, op: Operation, params: Record<string, string>, name: string, finish: Finish, identity: string, sens: Sensitive): Promise<GwResponse> {
   const def = deployments.getActiveDefinition(name, env);
   if (!def) return finish(503, { error: `Proces ${name} staat niet op ${env.toUpperCase()}` }, { outcome: "proces ontbreekt", target: name, identity });
   const body = req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body) && !Array.isArray(req.body) ? (req.body as Record<string, unknown>) : req.body === undefined ? {} : { body: Buffer.isBuffer(req.body) ? req.body.toString("utf8") : req.body };
-  const headers = plainHeaders(req.headers, ["authorization", "cookie"]);
-  const input = { ...body, params, query: req.query, headers, _trigger: { type: "api", env, method: req.method, path: req.path, operation: op.operationId || op.key, identity, firedAt: new Date().toISOString() } };
+  const headers = plainHeaders(req.headers, [...sens.headers]);
+  const query = Object.fromEntries(Object.entries(req.query).filter(([k]) => !sens.query.has(k.toLowerCase())));
+  const input = { ...body, params, query, headers, _trigger: { type: "api", env, method: req.method, path: req.path, operation: op.operationId || op.key, identity, firedAt: new Date().toISOString() } };
   const run = await runDeployed(def, env, input, { triggeredBy: "api" });
   const extra = { target: name, runId: run.id, processVersion: Number(def.version), identity };
-  if (run.status !== "success") return finish(500, { error: run.error || "Proces gefaald", runId: run.id }, { ...extra, outcome: "proces gefaald", error: run.error });
+  if (run.status !== "success") return finish(500, { error: publicError(env, run.error), runId: run.id }, { ...extra, outcome: "proces gefaald", error: run.error });
   const custom = run.output?._response as { status?: number; body?: unknown; headers?: Record<string, string> } | undefined;
   if (custom) return finish(Number(custom.status || 200), custom.body ?? null, extra, Object.fromEntries(Object.entries(custom.headers || {}).map(([k, v]) => [k.toLowerCase(), String(v)])));
   const out = Object.fromEntries(Object.entries(run.output ?? {}).filter(([k]) => !k.startsWith("_") && !["params", "query", "headers"].includes(k)));
   return finish(200, out, extra);
 }
 
-async function passthrough(req: GwRequest, doc: ApiDoc, op: Operation | undefined, link: OpLink, finish: Finish, identity: string): Promise<GwResponse> {
+async function passthrough(req: GwRequest, doc: ApiDoc, op: Operation | undefined, link: OpLink, finish: Finish, identity: string, sens: Sensitive): Promise<GwResponse> {
   const rest = req.path.slice(doc.basePath.length) || "";
   let url = link.target!.replace(/\/+$/, "");
   if (link.forwardPath !== false) url += rest.startsWith("/") ? rest : `/${rest}`;
-  if (link.forwardQuery !== false && req.rawQuery) url += (url.includes("?") ? "&" : "?") + req.rawQuery;
+  const fwdQuery = stripQuery(req.rawQuery, sens.query);
+  if (link.forwardQuery !== false && fwdQuery) url += (url.includes("?") ? "&" : "?") + fwdQuery;
   const remove = new Set([...(link.removeHeaders || []), "cookie", "x-aip-user"]);
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k.toLowerCase()) && !remove.has(k.toLowerCase())) headers[k] = Array.isArray(v) ? v.join(", ") : String(v);
   // API-sleutel van de afnemer niet doorsturen naar de achterliggende API.
-  for (const k of Object.keys(headers)) if (/^(x-api-key|apikey|api-key)$/i.test(k)) delete headers[k];
-  Object.assign(headers, link.setHeaders || {});
+  // Sleutels/tokens van de afnemer niet doorsturen naar de achterliggende API.
+  for (const k of Object.keys(headers)) if (sens.headers.has(k.toLowerCase())) delete headers[k];
+  // Ingestelde headers vervangen bestaande (hoofdletterongevoelig).
+  for (const [k, v] of Object.entries(link.setHeaders || {})) { for (const h of Object.keys(headers)) if (h.toLowerCase() === k.toLowerCase()) delete headers[h]; headers[k] = v; }
   const hasBody = !["GET", "HEAD"].includes(req.method) && req.body !== undefined;
   const res = await safeFetch(url, { method: req.method, headers, body: hasBody ? (Buffer.isBuffer(req.body) ? new Uint8Array(req.body) : typeof req.body === "string" ? req.body : JSON.stringify(req.body)) : undefined, signal: AbortSignal.timeout(30000) });
   const ct = res.headers.get("content-type") || "";

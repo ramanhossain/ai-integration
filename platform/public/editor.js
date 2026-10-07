@@ -499,7 +499,7 @@
       if (pl) { node.config.plugin = pl.id; node.config.target = pl.id.replace(/-/g, "_"); }
       const g = geom(node);
       let pos;
-      if (ctx && ctx.at) pos = { x: ctx.at.x - g.w / 2, y: ctx.at.y - g.h / 2 };
+      if (ctx && ctx.at) pos = freeSpot(snap(ctx.at.x - g.w / 2), snap(ctx.at.y - g.h / 2));
       else if (ctx && ctx.from) {
         const p = outPoint(nodeById(ctx.from), ctx.port);
         pos = p.dir === "down" ? { x: p.x - g.w / 2, y: p.y + 90 } : { x: p.x + 110, y: p.y - g.h / 2 };
@@ -854,14 +854,21 @@
       if (!st || !TYPES[type]) return;
       pushHistory();
       const oldPos = st.position;
+      const oldG = geom(st);
       const pl = plugin ? pluginInfo(plugin) : null;
       st.type = type;
       st.name = pl ? pl.name : TYPES[type].label;
       st.config = clone(TYPES[type].def);
       if (pl) { st.config.plugin = pl.id; st.config.target = pl.id.replace(/-/g, "_"); }
       delete st.pinData;
-      // positie behouden; bij een andere vorm (bv. taak -> beslissing) centreren
-      st.position = oldPos;
+      // Bij een andere vorm (bv. beslissing -> taak) op hetzelfde middelpunt zetten.
+      const g = geom(st);
+      st.position = oldPos ? { x: snap(oldPos.x + oldG.w / 2 - g.w / 2), y: snap(oldPos.y + oldG.h / 2 - g.h / 2) } : oldPos;
+      // Uitgaande verbindingen naar uitgangen die de nieuwe vorm niet heeft omzetten (of weghalen
+      // als de nieuwe stap geen uitgang heeft), zodat er geen onzichtbare verbindingen achterblijven.
+      const ports = g.outs.map((o) => o.port);
+      def.connections = def.connections.filter((c) => c.from !== id || ports.length);
+      for (const c of def.connections) if (c.from === id && !ports.includes(c.port || "out")) { if (ports[0] === "out") delete c.port; else c.port = ports[0]; }
       selected = { kind: "node", id };
       draw();
       changed();
@@ -906,7 +913,10 @@
       pushHistory();
       const xs = clip.steps.map((x) => x.position?.x ?? 0), ys = clip.steps.map((x) => x.position?.y ?? 0);
       const minX = Math.min(...xs), minY = Math.min(...ys);
-      const dx = at ? at.x - minX : offset.x, dy = at ? at.y - minY : offset.y;
+      const dx = at ? at.x - minX : offset.x;
+      let dy = at ? at.y - minY : offset.y;
+      const clash = (ddy) => clip.steps.some((src) => allNodes().some((n) => n.position && Math.abs(n.position.x - ((src.position?.x ?? 200) + dx)) < 90 && Math.abs(n.position.y - ((src.position?.y ?? 200) + ddy)) < 70));
+      for (let i = 0; i < 20 && clash(dy); i++) dy += 120;
       const map = {};
       const added = [];
       for (const src of clip.steps) {
@@ -1126,6 +1136,8 @@
       let x = e.clientX, y = e.clientY;
       if (x + mw > window.innerWidth - 8) x = Math.max(8, x - mw);
       if (y + mh > window.innerHeight - 8) y = Math.max(8, window.innerHeight - mh - 8);
+      menu.style.maxHeight = `${window.innerHeight - 16}px`;
+      menu.style.overflowY = "auto";
       menu.style.left = `${x}px`;
       menu.style.top = `${y}px`;
       const first = menu.querySelector(".mi:not([disabled])");
@@ -1311,8 +1323,18 @@
     let rows, base;
     if (t === "array") { rows = v; base = ""; }
     else {
-      const lists = Object.entries(v).filter(([, x]) => Array.isArray(x) && x.length && x.every((r) => typeOf(r) === "object"));
-      if (lists.length === 1 && Object.keys(v).length === 1) { rows = lists[0][1]; base = lists[0][0]; }
+      const lists = [];
+      const walk = (o, path, depth) => {
+        for (const [k, x] of Object.entries(o)) {
+          if (k.startsWith("_") && depth === 0 && k !== "_call") continue;
+          const p = path ? `${path}.${k}` : k;
+          if (Array.isArray(x) && x.length && x.every((r) => typeOf(r) === "object")) lists.push([p, x]);
+          else if (typeOf(x) === "object" && depth < 3) walk(x, p, depth + 1);
+        }
+      };
+      walk(v, "", 0);
+      lists.sort((a, b) => b[1].length - a[1].length);
+      if (lists.length) { rows = lists[0][1]; base = lists[0][0]; }
       else { rows = [v]; base = null; }
     }
     if (!rows.length) return `<div class="empty">Geen rijen.</div>`;
