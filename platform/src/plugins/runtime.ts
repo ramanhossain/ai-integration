@@ -233,8 +233,15 @@ export async function executePlugin(call: PluginCall): Promise<{ status: number;
   }
 
   // URL
-  const base = String(fill(op.baseUrl ?? def.baseUrl, { ...params, ...values })).replace(/\/$/, "");
-  if (!/^https?:\/\//.test(base)) throw new Error(`${def.name}: adres ontbreekt in de koppeling (${def.fields?.map((f) => f.label).join(", ") || "basis-URL"})`);
+  // OAuth zonder token: eerst "nog niet verbonden" melden (bv. instanceUrl komt pas uit het tokenantwoord).
+  if (def.auth.type === "oauth2" && !values.accessToken) await accessToken(def, call.credential ?? "-", env, values);
+  const baseTpl = String(op.baseUrl ?? def.baseUrl ?? "");
+  const base = String(fill(baseTpl, { ...params, ...values })).replace(/\/$/, "");
+  if (!/^https?:\/\//.test(base)) {
+    const empty = [...baseTpl.matchAll(/\{\{\s*([\w.$-]+)\s*\}\}/g)].map((m) => m[1]).filter((k) => str(getPath({ ...params, ...values }, k)) === "");
+    const names = empty.map((k) => def.fields?.find((f) => f.key === k)?.label ?? op.params?.find((p) => p.name === k)?.label ?? k);
+    throw new Error(`${def.name}: ${names.length ? `${names.join(", ")} ontbreekt in de koppeling` : `ongeldig adres '${base || "(leeg)"}' — begin met https://`}`);
+  }
   const missing = [...op.path.matchAll(/\{\{\s*([\w.$-]+)\s*\}\}/g)].map((m) => m[1]).filter((k) => str(getPath(vars, k)) === "");
   if (missing.length) throw new Error(`${def.name} · ${op.label}: ${missing.map((k) => op.params?.find((p) => p.name === k)?.label ?? def.fields?.find((f) => f.key === k)?.label ?? k).join(", ")} ontbreekt`);
   const raw = new Set((op.params ?? []).filter((p) => p.format === "raw").map((p) => p.name));

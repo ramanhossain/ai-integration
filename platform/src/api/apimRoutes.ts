@@ -12,7 +12,11 @@ import type { Integration } from "../domain/types";
 // API-sleutels voor afnemers, OAuth-uitgevers en API-monitoring.
 
 const who = (req: FastifyRequest) => String(req.headers["x-aip-user"] || "gebruiker");
-const fail = (reply: FastifyReply, err: unknown, code = 400) => reply.code(code).send({ error: (err as Error).message });
+// Iets dat niet bestaat → 404; overige fouten (validatie) → 400, tenzij de fout een eigen status heeft.
+const fail = (reply: FastifyReply, err: unknown, code = 400) => {
+  const e = err as Error & { statusCode?: number };
+  return reply.code(e.statusCode ?? (/niet gevonden|bestaat niet/i.test(e.message) ? 404 : code)).send({ error: e.message });
+};
 const baseUrl = (req: FastifyRequest) => `${req.protocol}://${req.headers.host}${orgPathPrefix()}`;
 
 function detail(id: string, req: FastifyRequest) {
@@ -70,13 +74,23 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
       const env = req.body.env as EnvName;
       if (env === "dev") return reply.code(400).send({ error: "DEV is altijd de werkversie" });
       const version = req.body.version || d.version;
-      if (!apim.getVersion(d.id, version)) return reply.code(400).send({ error: `Versie ${version} bestaat niet` });
+      if (!apim.getVersion(d.id, version)) return reply.code(404).send({ error: `Versie ${version} bestaat niet` });
       const cur = apim.deployed(d.id)[env]?.version;
       const pub = apim.getVersion(d.id, version)?.publishedAs;
       if (cur === version || (pub && cur === pub)) return reply.code(409).send({ error: `Versie ${version} staat al op ${env.toUpperCase()}` });
       const open = approvals.list({ status: "pending" }).find((a) => a.action.type === "api.deploy" && a.action.target?.resource === d.id && a.action.target?.environment === env);
       if (open) return reply.code(409).send({ error: `Er staat al een deployverzoek voor ${d.title} naar ${env.toUpperCase()} open`, approvalId: open.id });
-      return approvals.propose({ type: "api.deploy", proposedBy: who(req), reason: `API ${d.title} (${version}) naar ${env.toUpperCase()}${cur ? ` (nu ${cur})` : ""}`, target: { environment: env, resource: d.id }, payload: { apiId: d.id, version, from: cur }, reversible: true });
+      // Controle vooraf: gekoppelde processen en beleid moeten ook op de doelomgeving staan.
+      const vdoc = apim.getVersion(d.id, version)!.doc;
+      let ops: Array<{ key: string; method: string; path: string }> = [];
+      try { ops = parseSpec(vdoc.specText).ops; } catch { /* spec al gevalideerd bij opslaan */ }
+      const procs = [...new Set(Object.values(vdoc.links).filter((l) => l?.mode === "process" && l.process).map((l) => l.process!))];
+      const warnings = [
+        ...procs.filter((p) => !deployments.getActiveDefinition(p, env)).map((p) => `Proces ${p} staat niet op ${env.toUpperCase()}`),
+        ...(ops.length && !ops.some((o) => apim.policyFor(env, o.method, vdoc.basePath + o.path)) ? [`Geen API-beleid voor ${vdoc.basePath} op ${env.toUpperCase()}: alle aanroepen krijgen 401`] : [])
+      ];
+      const a = await approvals.propose({ type: "api.deploy", proposedBy: who(req), reason: `API ${d.title} (${version}) naar ${env.toUpperCase()}${cur ? ` (nu ${cur})` : ""}${warnings.length ? ` — let op: ${warnings.join("; ")}` : ""}`, target: { environment: env, resource: d.id }, payload: { apiId: d.id, version, from: cur, warnings }, reversible: true });
+      return warnings.length ? { ...a, warnings } : a;
     }
   );
   app.delete<{ Params: { id: string; env: string } }>("/api/v1/apim/apis/:id/deploy/:env", { schema: { ...T, summary: "API van een omgeving halen" } }, async (req, reply) => {
@@ -98,7 +112,7 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
       const d = apim.getApi(req.params.id);
       if (!d) return reply.code(404).send({ error: "API niet gevonden" });
       const op = apim.operations(d).find((o) => o.key === req.body.operation);
-      if (!op) return reply.code(400).send({ error: "Operatie niet gevonden" });
+      if (!op) return reply.code(404).send({ error: "Operatie niet gevonden" });
       const base = (req.body.name || op.operationId || `${d.title}_${op.method}_${op.path}`).replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^[^A-Za-z]+/, "").slice(0, 60) || "ApiProces";
       let name = base;
       for (let i = 2; registry.getIntegration(name); i++) name = `${base.slice(0, 56)}_${i}`;

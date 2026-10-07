@@ -157,12 +157,15 @@ const nodes: Record<string, NodeHandler> = {
     const missing = missingVars(c.url, payload);
     if (missing.length) throw Object.assign(new Error(`URL gebruikt ${missing.map((m) => `{{${m}}}`).join(", ")}, maar dat veld staat niet in het bericht`), { noRetry: true });
     const url = tpl(c.url, payload, ctx.env);
-    const method = String(c.method || "POST").toUpperCase(); // zonder methode: POST (berichten versturen)
+    // Zonder methode: GET (zoals in de editor), tenzij er expliciet een body is ingesteld.
+    const method = String(c.method || (c.body && c.body !== "none" ? "POST" : "GET")).toUpperCase();
     const target = String(c.target || "_call");
     if (!url) {
       const latency = 20 + Math.round(Math.random() * 90);
       await sleep(latency);
-      return setPath(payload, target, { simulated: true, target: c.target ?? "unknown", system: c.system ?? c.target, latencyMs: latency });
+      // Oude definities (zonder methode) gebruiken `target` als systeemnaam; in de editor is het het doelveld.
+      const system = String(c.system ?? (c.method ? "geen URL ingesteld" : c.target ?? "onbekend"));
+      return setPath(payload, target, { simulated: true, system, latencyMs: latency });
     }
     const u = new URL(url);
     for (const [k, v] of Object.entries((c.query as Record<string, unknown>) ?? {})) u.searchParams.set(k, tpl(v, payload, ctx.env));
@@ -342,7 +345,7 @@ export const STEP_CATALOG = [
   { type: "enrich", group: "Data", label: "Velden instellen", description: "Velden toevoegen/overschrijven", config: { set: "{ veld: waarde | '{{template}}' }" } },
   { type: "csv", group: "Data", label: "CSV", description: "CSV lezen of maken", config: { mode: "parse | generate", field: "bronveld", target: "doelveld", delimiter: "string", header: "boolean" } },
   { type: "xml", group: "Data", label: "XML", description: "XML lezen of maken", config: { mode: "parse | build", field: "bronveld", target: "doelveld", root: "rootelement (build)" } },
-  { type: "call", group: "Kern", label: "HTTP-aanroep", description: "REST/HTTP-API aanroepen", retryable: true, config: { method: "GET|POST|PUT|PATCH|DELETE", url: "template; leeg = gesimuleerd", credential: "http-basic | http-bearer | api-key", headers: "object", query: "object", body: "payload | field | custom | none", target: "doelveld (default _call)" } },
+  { type: "call", group: "Kern", label: "HTTP-aanroep", description: "REST/HTTP-API aanroepen", retryable: true, config: { method: "GET|POST|PUT|PATCH|DELETE (default GET; POST als body is ingesteld)", url: "template; leeg = gesimuleerd", credential: "http-basic | http-bearer | api-key", headers: "object", query: "object", body: "payload | field | custom | none", target: "doelveld (default _call)" } },
   { type: "code", group: "Kern", label: "Code (JavaScript)", description: "Eigen JavaScript; `input` is het bericht, return het nieuwe bericht", config: { code: "string", timeoutMs: "number" } },
   { type: "delay", group: "Kern", label: "Wachten", description: "Pauzeer het proces", config: { ms: "number (max 60000)" } },
   { type: "subprocess", group: "Kern", label: "Subproces", description: "Ander proces aanroepen op dezelfde omgeving", config: { process: "procesnaam", inputField: "optioneel", target: "doelveld" } },
@@ -356,6 +359,7 @@ export const STEP_CATALOG = [
   { type: "notify", group: "Communicatie", label: "Teams / Slack", description: "Bericht naar een Teams- of Slack-webhook", retryable: true, config: { kind: "teams | slack", credential: "webhook", url: "optioneel", title: "template", text: "template" } },
   { type: "connector", group: "Plugins", label: "Connector (plugin)", description: "Een operatie van een plugin uitvoeren (Google, Microsoft, Slack, Salesforce, Stripe, …); zie /api/v1/plugins", retryable: true, config: { plugin: "plugin-id", operation: "operatie-id", credential: "koppeling (type plugin)", params: "object met parameters ({{templates}})", target: "doelveld" } },
   { type: "mcp-tool", group: "AI & MCP", label: "MCP-tool", description: "Tool aanroepen op een externe MCP-server", retryable: true, config: { credential: "mcp", url: "optioneel", tool: "toolnaam", arguments: "object met templates", target: "doelveld" } },
+  { type: "custom", group: "Flow", label: "Doorgeven", description: "Bericht ongewijzigd doorgeven (placeholder of samenvoegpunt)", config: {} },
   { type: "branch", group: "Flow", label: "Beslissing", description: "Exclusieve gateway: ja/nee-pad", config: { when: "veldpad", op: "truthy | equals | notEquals | gt | lt | contains | exists", value: "vergelijkingswaarde" } },
   { type: "end", group: "Flow", label: "Einde", description: "Eindevent", config: {} }
 ];

@@ -181,9 +181,13 @@ async function amDetail(main, id) {
   main.querySelectorAll("[data-am-sub]").forEach((b) => b.addEventListener("click", () => show(b.dataset.amSub)));
   show(amDetailTab);
   document.getElementById("am-deploy").addEventListener("click", () => amDeploy(d));
-  document.getElementById("am-dl").addEventListener("click", () => {
-    const blob = new Blob([d.specText], { type: "text/plain" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${d.id}-${d.version}.${d.specText.trim().startsWith("{") ? "json" : "yaml"}`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  // Download: de spec zoals afnemers hem zien (met server-URL van de omgeving), voor de hoogste omgeving waar hij staat.
+  document.getElementById("am-dl").addEventListener("click", async () => {
+    const env = ["prod", "acc", "test"].find((e) => d.deployed[e]) || "dev";
+    let text = d.specText, ext = d.specText.trim().startsWith("{") ? "json" : "yaml";
+    try { text = JSON.stringify(await api(`/api/v1/apim/apis/${encodeURIComponent(id)}/spec?env=${env}`), null, 2); ext = "json"; } catch { /* ruwe spec */ }
+    const blob = new Blob([text], { type: ext === "json" ? "application/json" : "text/plain" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${d.id}-${env}.${ext}`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
   document.getElementById("am-del").addEventListener("click", () => confirmModal("API verwijderen?", `<b>${esc(d.title)}</b> wordt verwijderd. Dat kan alleen als hij nergens meer gedeployed is; gekoppelde processen blijven bestaan.`, async () => { await api(`/api/v1/apim/apis/${encodeURIComponent(id)}`, { method: "DELETE" }); toast("API verwijderd"); go("apis"); }, "Verwijderen"));
 }
@@ -226,6 +230,7 @@ function amDeploy(d, versionPref) {
       const a = await api(`/api/v1/apim/apis/${encodeURIComponent(d.id)}/deploy`, { body: { env, version: document.getElementById("amd-v").value } });
       closeModal();
       toast(a.status === "executed" ? `Gedeployed naar ${env.toUpperCase()}` : `Deploy naar ${env.toUpperCase()} wacht op ${a.requiredApprovals} goedkeuring(en)`);
+      if (a.warnings?.length) setTimeout(() => toast(`Let op: ${a.warnings.join("; ")}`, true), 600);
       render();
     } catch (err) { toast(err.message, true); }
   });
@@ -234,7 +239,7 @@ function amDeploy(d, versionPref) {
 // Proberen: echte aanroep via de gateway (met beleid, throttling en monitoring).
 function amTry(d, o) {
   const envs = ENVS.filter((e) => d.deployed[e.id]);
-  const pathParams = o.params.filter((p) => p.in === "path"), queryParams = o.params.filter((p) => p.in === "query");
+  const pathParams = o.params.filter((p) => p.in === "path"), queryParams = o.params.filter((p) => p.in === "query"), headerParams = o.params.filter((p) => p.in === "header");
   const withBody = !["GET", "HEAD", "DELETE"].includes(o.method);
   openModal(`<div class="ch"><h3>${ic("play")} Proberen · ${amMethod(o.method)} <span class="mono">${esc(d.basePath + o.path)}</span></h3><button class="x" data-close aria-label="Sluiten">×</button></div>
     <div class="cb" style="max-height:74vh;overflow:auto">
@@ -243,6 +248,7 @@ function amTry(d, o) {
       <div class="row" style="gap:12px"><div style="flex:1"><label class="xf-l" for="tr-kn">Naam header/parameter</label><input class="f mono" id="tr-kn" value="x-api-key"></div><div style="flex:2"><label class="xf-l" for="tr-kv">Sleutel of token</label><input class="f mono" id="tr-kv" autocomplete="off"></div></div>
       ${pathParams.map((p) => `<label class="xf-l" for="tp-${esc(p.name)}">{${esc(p.name)}} <span class="faint">pad</span></label><input class="f" id="tp-${esc(p.name)}" data-tp="${esc(p.name)}">`).join("")}
       ${queryParams.map((p) => `<label class="xf-l" for="tq-${esc(p.name)}">${esc(p.name)} <span class="faint">query</span></label><input class="f" id="tq-${esc(p.name)}" data-tq="${esc(p.name)}">`).join("")}
+      ${headerParams.map((p) => `<label class="xf-l" for="th-${esc(p.name)}">${esc(p.name)} <span class="faint">header${p.required ? " · verplicht" : ""}</span></label><input class="f mono" id="th-${esc(p.name)}" data-th="${esc(p.name)}">`).join("")}
       ${withBody ? `<label class="xf-l" for="tr-body">Body (JSON)</label><textarea class="f mono" id="tr-body" rows="5">{}</textarea>` : ""}
       <div id="tr-out" style="margin-top:12px"></div>
     </div>
@@ -255,6 +261,7 @@ function amTry(d, o) {
     document.querySelectorAll("[data-tq]").forEach((x) => { if (x.value) qs.set(x.dataset.tq, x.value); });
     const mode = document.getElementById("tr-auth").value, kn = document.getElementById("tr-kn").value.trim(), kv = document.getElementById("tr-kv").value.trim();
     const headers = {};
+    document.querySelectorAll("[data-th]").forEach((x) => { if (x.value) headers[x.dataset.th] = x.value; });
     if (mode === "header" && kv) headers[kn] = kv;
     if (mode === "query" && kv) qs.set(kn, kv);
     if (mode === "bearer" && kv) headers.authorization = `Bearer ${kv}`;

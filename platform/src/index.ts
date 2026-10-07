@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { INVALID_JSON } from "./apim/gateway";
 import Fastify from "fastify";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -46,7 +47,11 @@ export async function buildServer() {
     const text = String(body ?? "").trim();
     if (!text) return done(null, undefined);
     try { done(null, JSON.parse(text)); }
-    catch (err) { (err as Error & { statusCode?: number }).statusCode = 400; done(err as Error, undefined); }
+    catch (err) {
+      // API-gateway: eerst beleid/authenticatie, daarna pas "ongeldige JSON" (en dan ook in de monitoring).
+      if (/^(\/o\/[^/]+)?\/apis\//.test(_req.url)) return done(null, INVALID_JSON);
+      (err as Error & { statusCode?: number }).statusCode = 400; done(err as Error, undefined);
+    }
   });
   app.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: 10 * 1024 * 1024 }, (_req, body, done) => done(null, body));
 

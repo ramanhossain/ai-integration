@@ -241,7 +241,10 @@ export async function registerConnectorRoutes(app: FastifyInstance): Promise<voi
       url: `${pre}/apis/:env/*`,
       schema: { hide: true },
       handler: async (req, reply) => {
-        if (!isEnv(req.params.env)) return reply.code(404).send({ error: "Onbekende omgeving" });
+        if (!isEnv(req.params.env)) {
+          apim.log({ at: new Date().toISOString(), env: req.params.env as EnvName, method: req.method, path: "/" + req.params["*"], status: 404, durationMs: 0, ip: req.ip, outcome: "onbekende omgeving" });
+          return reply.code(404).send({ error: "Onbekende omgeving" });
+        }
         if (req.params["*"] === "openapi.json" && req.method === "GET") return triggers.openApi(req.params.env, baseUrl(req));
         // API-beheer (specificaties + beleid) eerst; daarna de losse API-endpoint-triggers.
         try {
@@ -259,8 +262,8 @@ export async function registerConnectorRoutes(app: FastifyInstance): Promise<voi
         try {
           const t0 = Date.now();
           const r = await triggers.handleApi(req.params.env, req.params["*"], { method: req.method, headers: req.headers as Record<string, unknown>, query: req.query as Record<string, unknown>, body: req.body });
-          // Ook aanroepen die nergens uitkomen in API-monitoring (ongevraagde verzoeken).
-          if (r.status === 404) apim.log({ at: new Date(t0).toISOString(), env: req.params.env, method: req.method, path: "/" + req.params["*"], status: 404, durationMs: Date.now() - t0, ip: req.ip, outcome: "geen endpoint" });
+          // Alle aanroepen in API-monitoring: losse API-endpoint-triggers en verzoeken die nergens uitkomen.
+          apim.log({ at: new Date(t0).toISOString(), env: req.params.env, method: req.method, path: "/" + req.params["*"], status: r.status, durationMs: Date.now() - t0, ip: req.ip, outcome: r.status === 404 ? "geen endpoint" : r.status < 400 ? "ok" : "error", ...(r.status !== 404 ? { api: "API-endpoint (trigger)" } : {}) });
           return reply.code(r.status).send(r.body);
         } catch (e) {
           return reply.code(500).send({ error: (e as Error).message });

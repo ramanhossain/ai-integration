@@ -489,14 +489,15 @@ async function renderVersions(host, name, dirty) {
   const info = await api(`/api/v1/integrations/${encodeURIComponent(name)}/versions`);
   if (!host.isConnected) return;
   host.innerHTML = `
-  <div class="card" style="margin-bottom:14px"><div class="ch"><h3>Versies</h3><span class="faint">Opslaan maakt een nieuwe versie op DEV. Terugzetten op DEV maakt een kopie als nieuwste versie; de historie blijft intact.</span></div>
+  <div class="card" style="margin-bottom:14px"><div class="ch"><h3>Versies</h3><span class="faint">Opslaan maakt een nieuwe versie op DEV. Terugzetten op DEV maakt een kopie als nieuwste versie; de historie blijft intact.</span>${info.versions.length > 1 ? `<button class="btn sm sec" style="margin-left:auto" data-act="ver-compare" data-name="${esc(name)}" data-ico-done>${ic("list", 14)}<span>Vergelijken</span></button>` : ""}</div>
     <div class="tw"><table><thead><tr><th>Versie</th><th>Gemaakt</th><th>Door</th><th>Notitie</th><th>Actief op</th><th>Stappen</th><th></th></tr></thead><tbody>
-    ${info.versions.map((x) => `<tr><td class="ver"><b>v${x.version}</b></td><td class="mono">${x.createdAt ? fmtDateTime(x.createdAt) : "—"}</td><td>${esc(x.createdBy || "—")}</td>
+    ${info.versions.map((x, i) => `<tr><td class="ver"><b>v${x.version}</b></td><td class="mono">${x.createdAt ? fmtDateTime(x.createdAt) : "—"}</td><td>${esc(x.createdBy || "—")}</td>
       <td class="muted">${esc(x.note || "")}</td>
       <td>${x.activeOn.length ? x.activeOn.map((e) => `<span class="env ${e}">${e}</span>`).join(" ") : '<span class="faint">—</span>'}</td>
       <td class="mono">${x.steps}</td>
       <td><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">
         <button class="btn sm sec" data-act="ver-view" data-name="${esc(name)}" data-v="${x.version}">Bekijken</button>
+        ${info.versions[i + 1] ? `<button class="btn sm sec icon" data-act="ver-compare" data-name="${esc(name)}" data-a="${info.versions[i + 1].version}" data-b="${x.version}" title="Vergelijk met v${info.versions[i + 1].version}" aria-label="Vergelijk met v${info.versions[i + 1].version}" data-ico-done>${ic("list", 14)}</button>` : ""}
         ${x.version !== info.envs.dev ? `<button class="btn sm sec" data-act="ver-restore" data-name="${esc(name)}" data-v="${x.version}" ${dirty ? 'data-dirty="1"' : ""}>Terugzetten op DEV</button>` : ""}
         <button class="btn sm" data-act="deploy-dialog" data-name="${esc(name)}" data-v="${x.version}">Deploy…</button>
       </div></td></tr>`).join("")}
@@ -1412,6 +1413,7 @@ document.addEventListener("click", async (e) => {
     if (act === "to-dev") { S.env = "dev"; localSet("aip.env", "dev"); renderEnvs(); toast("Omgeving: Development — hier kun je bewerken"); render(); }
     if (act === "deploy-dialog") { if (!document.getElementById("modal").classList.contains("hide")) closeModal(); await deployDialog(b.dataset.name, b.dataset.env, b.dataset.v); }
     if (act === "ver-view") await viewVersion(b.dataset.name, b.dataset.v);
+    if (act === "ver-compare") await versionsModal(b.dataset.name, "compare", b.dataset.a ? { a: Number(b.dataset.a), b: Number(b.dataset.b) } : {});
     if (act === "ver-restore") await restoreVersion(b.dataset.name, Number(b.dataset.v), b.dataset.dirty === "1");
     if (act === "ed-openrun") {
       S.editor.lastRun = await api(`/api/v1/runs/${b.dataset.id}`);

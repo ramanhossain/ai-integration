@@ -3,6 +3,10 @@
 // Aanvullen: voeg de Nederlandse tekst zoals die in de code staat toe met de Engelse vertaling.
 window.I18N_EN = {
   phrases: {
+    "Opnieuw (Ctrl/Cmd+Shift+Z)": "Redo (Ctrl/Cmd+Shift+Z)",
+    "Opgeslagen waarde wissen": "Clear stored value",
+    "(wordt gewist bij opslaan)": "(cleared on save)",
+    "Ongeldige JSON in de body": "Invalid JSON in the body",
     "Van een omgeving halen:": "Remove from an environment:",
     "Van omgeving halen": "Remove from environment",
     "is daarna niet meer bereikbaar op": "is then no longer reachable on",

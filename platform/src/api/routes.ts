@@ -87,7 +87,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     async (req) => {
       const note = (req.query.note ?? "").trim();
       // create=true: nieuw proces — weigeren als de naam al bestaat (niet stil overschrijven).
-      return registry.upsertIntegration(req.body, { ...(note ? { note } : {}), create: req.query.create === "true" });
+      const by = req.headers["x-aip-user"] ? String(req.headers["x-aip-user"]).slice(0, 80) : undefined;
+      const body = by && !req.body.owner ? { ...req.body, owner: by } : req.body;
+      return registry.upsertIntegration(body, { ...(note ? { note } : {}), create: req.query.create === "true", ...(by ? { by } : {}) });
     }
   );
   app.get("/api/v1/integrations", { schema: { tags: ["integrations"] } }, async () => registry.listIntegrations());

@@ -220,6 +220,7 @@
   .elbl, .plbl { font-size:10.5px; fill:#5d6b82; }
   /* aansluitpunten en + alleen bij hover of selectie */
   .hd, .plus, .plbl { opacity:0; transition:opacity .12s; }
+  .plus { opacity:.6; } /* "+" op een vrije uitgang altijd zichtbaar (vindbaar voor nieuwe gebruikers) */
   .nd:hover .hd, .nd.sel .hd, .nd:hover .plus, .nd.sel .plus, .nd:hover .plbl, .nd.sel .plbl { opacity:1; }
   .pc-svg:active .hd.out { opacity:1; }
   /* gewijzigde elementen lichten kort op */
@@ -258,7 +259,8 @@
   .pc-tools svg { width:24px; height:24px; }
   .pc-tools .sep { grid-column:1 / -1; height:1px; background:var(--border); margin:3px 2px; }
   .pc.drop { outline:2px dashed var(--accent); outline-offset:-6px; }
-  .pc-hint { right:14px; left:auto; }
+  /* Hint bovenaan in het midden: rechtsonder zit de AI-knop, linksonder de canvasknoppen. */
+  .pc-hint { top:12px; bottom:auto; left:50%; right:auto; transform:translateX(-50%); max-width:min(460px, calc(100% - 200px)); text-align:center; }
 
   /* Triggerkeuze */
   .modal .box:has(.trig-grid) { width:min(760px,100%); }
@@ -605,7 +607,7 @@
   @media (max-width:760px){ .vm-bpmn { grid-template-columns:1fr; } }
   .vm-pane { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--surface-2); }
   .vm-pane-h { padding:6px 10px; font-size:.8rem; font-weight:600; border-bottom:1px solid var(--border); background:var(--surface); }
-  .vm-canvas { height:300px; position:relative; }
+  .vm-canvas { height:340px; position:relative; overflow:hidden; }
   .vm-canvas .nd.vm-add .body { stroke:#1f9d55 !important; stroke-width:3 !important; fill:#e8f7ee !important; }
   .vm-canvas .nd.vm-del .body { stroke:#d64545 !important; stroke-width:3 !important; fill:#fdecec !important; stroke-dasharray:6 4; }
   .vm-canvas .nd.vm-chg .body { stroke:#e8900c !important; stroke-width:3 !important; fill:#fff4e0 !important; }

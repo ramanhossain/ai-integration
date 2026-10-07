@@ -67,6 +67,7 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
       const def = plugins.get(req.params.id);
       if (!def) return reply.code(404).send({ error: "Plugin niet gevonden" });
       if (!def.test) return { ok: false, error: `${def.name} heeft geen testoperatie; probeer een operatie in een proces.` };
+      // Ook op PROD toegestaan: testoperaties zijn altijd lezend (account-info, ping, tellen), bedoeld om de koppeling te controleren.
       try {
         const r = await executePlugin({ plugin: def, operation: def.test, credential: req.body.credential, params: {}, env: req.body.env as EnvName });
         return { ok: true, operation: def.test, status: r.status, sample: JSON.stringify(r.data).slice(0, 600) };

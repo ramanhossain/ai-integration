@@ -76,7 +76,8 @@ export function normBasePath(p: string): string {
 export function parseSpec(text: string): { spec: Record<string, unknown>; ops: Operation[]; title?: string; description?: string; serverPath?: string } {
   let spec: Record<string, unknown>;
   try { spec = parseYaml(text) as Record<string, unknown>; } catch (err) { throw new Error(`Specificatie is geen geldige JSON/YAML: ${(err as Error).message}`); }
-  if (!spec || typeof spec !== "object") throw new Error("Lege specificatie");
+  if (spec === null || spec === undefined || (typeof spec === "string" && !String(spec).trim())) throw new Error("Lege specificatie");
+  if (typeof spec !== "object" || Array.isArray(spec)) throw new Error("Geen OpenAPI-document: verwacht een object met 'openapi', 'info' en 'paths'");
   if (!spec.openapi && !spec.swagger) throw new Error("Geen OpenAPI-document (veld 'openapi' of 'swagger' ontbreekt)");
   const paths = (spec.paths || {}) as Record<string, Record<string, unknown>>;
   const ops: Operation[] = [];

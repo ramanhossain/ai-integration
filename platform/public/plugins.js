@@ -103,6 +103,7 @@ async function plCredModal(d, name) {
     const v = {};
     document.querySelectorAll("#pc-fields [data-field]").forEach((el) => {
       const f = fields.find((x) => x.key === el.dataset.field);
+      if (el.dataset.cleared && el.value === "") return; // bewust gewist: weglaten = verwijderen
       if (el.value === "" && prev[f.key] === MASK) v[f.key] = MASK;
       else if (el.value !== "") v[f.key] = el.value;
     });
@@ -118,11 +119,15 @@ async function plCredModal(d, name) {
         ${d.oauthRedirectUri ? `<div class="xf-note">Redirect-URI: <code>${esc(d.oauthRedirectUri)}</code></div>` : ""}
         <label>Waarden per omgeving</label>
         <div class="ed-tabs" style="margin:0 0 6px">${ENVS.map((e) => `<button data-pc-env="${e.id}" class="${e.id === envTab ? "on" : ""}">${e.label}${values[e.id] && Object.keys(values[e.id]).length ? " ●" : ""}</button>`).join("")}</div>
-        <div id="pc-fields">${fields.map((f) => `<label for="pc-f-${esc(f.key)}">${esc(f.label)}</label><input class="f" id="pc-f-${esc(f.key)}" data-field="${esc(f.key)}" ${f.secret ? 'type="password" autocomplete="new-password"' : ""} value="${v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : ""}" placeholder="${v[f.key] === MASK ? "•••••• (ongewijzigd)" : esc(f.placeholder || f.default || "")}">${f.help ? `<div class="hint">${esc(f.help)}</div>` : ""}`).join("") || '<div class="muted">Geen gegevens nodig.</div>'}</div>
+        <div id="pc-fields">${fields.map((f) => `<label for="pc-f-${esc(f.key)}">${esc(f.label)}</label><input class="f" id="pc-f-${esc(f.key)}" data-field="${esc(f.key)}" ${f.secret ? 'type="password" autocomplete="new-password"' : ""} value="${v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : ""}" placeholder="${v[f.key] === MASK ? "•••••• (ongewijzigd)" : esc(f.placeholder || f.default || "")}">${v[f.key] === MASK ? `<button type="button" class="lnk" data-pc-clear="${esc(f.key)}" style="font-size:.78rem">Opgeslagen waarde wissen</button>` : ""}${f.help ? `<div class="hint">${esc(f.help)}</div>` : ""}`).join("") || '<div class="muted">Geen gegevens nodig.</div>'}</div>
         ${d.auth.type === "oauth2" ? `<div class="hint" style="margin-top:10px">Na opslaan klik je per omgeving op <b>Verbinden</b> om in te loggen bij ${esc(d.name)}.</div>` : ""}
       </div>
       <div class="cf"><button class="btn sec" data-close>Annuleren</button><button class="btn" id="pc-save">Opslaan</button></div>`);
     const box = document.getElementById("modal-box");
+    box.querySelectorAll("[data-pc-clear]").forEach((b) => b.addEventListener("click", () => {
+      const el = box.querySelector(`#pc-fields [data-field="${CSS.escape(b.dataset.pcClear)}"]`);
+      el.value = ""; el.dataset.cleared = "1"; el.placeholder = "(wordt gewist bij opslaan)"; b.remove(); el.focus();
+    }));
     box.querySelectorAll("[data-pc-env]").forEach((b) => b.addEventListener("click", () => { readEnv(); envTab = b.dataset.pcEnv; draw(); }));
     box.querySelector("#pc-save").addEventListener("click", async () => {
       readEnv();
