@@ -86,7 +86,7 @@ async function credModal(name) {
       return `<div class="rows" id="cm-generic">${(entries.length ? entries : [["", ""]]).map(([k, val]) => `<div class="kvr"><input class="f" placeholder="sleutel" value="${esc(k)}"><span class="kva">=</span><input class="f" placeholder="waarde" value="${esc(val)}"><button class="x" data-cm-delrow aria-label="Verwijderen">×</button></div>`).join("")}</div>
         <button class="btn sm sec" data-cm-addrow>+ Rij</button><div class="hint">Namen met pass/secret/token/key worden versleuteld. Voor HTTP: <code>header.X-Naam</code> wordt een header.</div>`;
     }
-    return t.fields.map((f) => `<label for="cm-${f.key}">${esc(f.label)}</label>${f.key === "privateKey" ? `<textarea class="f" id="cm-${f.key}" data-field="${f.key}" placeholder="${v[f.key] === MASK ? "•••••• (ongewijzigd)" : ""}">${v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : ""}</textarea>` : `<input class="f" id="cm-${f.key}" data-field="${f.key}" ${f.secret ? 'type="password" autocomplete="new-password"' : ""} value="${f.secret ? (v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : "") : esc(v[f.key] || "")}" placeholder="${f.secret && v[f.key] === MASK ? "•••••• (ongewijzigd)" : esc(f.placeholder || "")}">`}`).join("");
+    return t.fields.map((f) => `<label for="cm-${f.key}">${esc(f.label)}</label>${f.key === "privateKey" ? `<textarea class="f" id="cm-${f.key}" data-field="${f.key}" placeholder="${v[f.key] === MASK ? "•••••• (ongewijzigd)" : ""}">${v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : ""}</textarea>` : `<input class="f" id="cm-${f.key}" data-field="${f.key}" ${f.secret ? 'type="password" autocomplete="new-password"' : ""} value="${f.secret ? (v[f.key] && v[f.key] !== MASK ? esc(v[f.key]) : "") : esc(v[f.key] || "")}" placeholder="${f.secret && v[f.key] === MASK ? "•••••• (ongewijzigd)" : esc(f.placeholder || "")}">`}${f.secret && v[f.key] === MASK ? `<button type="button" class="lnk" data-cm-clear="${f.key}" style="font-size:.78rem">Opgeslagen waarde wissen</button>` : ""}`).join("");
   };
   const readEnv = () => {
     const nameEl = document.getElementById("cm-name"), descEl = document.getElementById("cm-desc");
@@ -102,6 +102,7 @@ async function credModal(name) {
       const prev = values[envTab] || {};
       box.querySelectorAll("[data-field]").forEach((el) => {
         const f = t.fields.find((x) => x.key === el.dataset.field);
+        if (el.dataset.cleared && el.value === "") return; // bewust gewist
         if (f.secret && el.value === "" && prev[f.key] === MASK) v[f.key] = MASK; // ongewijzigd
         else if (el.value !== "") v[f.key] = el.value;
       });
@@ -121,6 +122,10 @@ async function credModal(name) {
       <div class="cf"><button class="btn sec" data-close>Annuleren</button><button class="btn" id="cm-save">Opslaan</button></div>`);
     const box = document.getElementById("modal-box");
     box.querySelector("#cm-type").addEventListener("change", (ev) => { readEnv(); type = ev.target.value; for (const k of Object.keys(values)) delete values[k]; draw(); });
+    box.querySelectorAll("[data-cm-clear]").forEach((b) => b.addEventListener("click", () => {
+      const el = box.querySelector(`[data-field="${CSS.escape(b.dataset.cmClear)}"]`);
+      el.value = ""; el.dataset.cleared = "1"; el.placeholder = "(wordt gewist bij opslaan)"; b.remove(); el.focus();
+    }));
     box.querySelectorAll("[data-cm-env]").forEach((b) => b.addEventListener("click", () => { readEnv(); envTab = b.dataset.cmEnv; draw(); }));
     box.addEventListener("click", (ev) => {
       if (ev.target.closest("[data-cm-addrow]")) document.getElementById("cm-generic").insertAdjacentHTML("beforeend", `<div class="kvr"><input class="f" placeholder="sleutel"><span class="kva">=</span><input class="f" placeholder="waarde"><button class="x" data-cm-delrow aria-label="Verwijderen">×</button></div>`);

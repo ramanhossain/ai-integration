@@ -123,7 +123,7 @@ export async function registerPlatformRoutes(app: FastifyInstance): Promise<void
       }
       const approval = await approvals.propose({
         type: "integration.run",
-        proposedBy: req.body?.proposedBy ?? "gebruiker",
+        proposedBy: req.body?.proposedBy ?? String(req.headers["x-aip-user"] || "gebruiker"),
         target: { integration: req.params.name, environment: env },
         payload: { input: req.body?.input ?? {} }
       });
@@ -220,6 +220,7 @@ export async function registerPlatformRoutes(app: FastifyInstance): Promise<void
         integration: r.integration,
         env: r.env,
         version: r.version,
+        test: r.test,
         status: r.status,
         durationMs: r.durationMs,
         at: r.finishedAt,

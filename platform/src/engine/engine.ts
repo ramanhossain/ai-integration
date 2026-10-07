@@ -243,7 +243,8 @@ class Engine {
     perEnv: Record<string, { runs: number; error: number }>;
     recentErrors: Array<{ integration: string; env: string; error?: string; at: string }>;
   } {
-    const all = env ? this.runs.filter((r) => r.env === env) : this.runs;
+    // Test-runs uit de editor (niet-opgeslagen definitie) tellen niet mee in de cijfers.
+    const all = this.runs.filter((r) => !r.test && (!env || r.env === env));
     const total = all.length;
     const success = all.filter((r) => r.status === "success").length;
     const error = total - success;

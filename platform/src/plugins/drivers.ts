@@ -163,8 +163,11 @@ const redis: Driver = async (action, { params: p, values }) => {
 // ---------------------------------------------------------------- Kafka
 const kafka: Driver = async (action, { params: p, values }) => {
   const { Kafka, logLevel } = await load("kafkajs");
-  const brokers = String(values.brokers || "").split(",").map((b) => b.trim()).filter(Boolean);
+  // "kafka://host:9092" of "https://host:9092" mag ook: alleen host:poort doorgeven.
+  const brokers = String(values.brokers || "").split(",").map((b) => b.trim().replace(/^[a-z+]+:\/\//i, "").replace(/\/.*$/, "")).filter(Boolean);
   if (!brokers.length) throw new Error("Brokers ontbreken");
+  const bad = brokers.find((b) => !/^[\w.-]+:\d{1,5}$|^\[[\da-f:]+\]:\d{1,5}$/i.test(b));
+  if (bad) throw new Error("Kafka: elke broker moet de vorm host:poort hebben (bv. kafka.example.com:9092)");
   const sasl = values.user ? { mechanism: (values.mechanism || "plain") as string, username: values.user, password: values.password } : undefined;
   const k = new Kafka({ clientId: values.clientId || "aip", brokers, ssl: yes(values.ssl) || undefined, sasl, connectionTimeout: CONNECT_MS, requestTimeout: TIMEOUT_MS, retry: { retries: 0 }, logLevel: logLevel?.NOTHING ?? 0 });
   const target = `kafka://${brokers.join(",")}`;
@@ -392,6 +395,8 @@ export const DRIVERS: Record<string, Driver> = {
   mongodb: mongo, redis, kafka, mqtt, rabbitmq, amqp10, ldap, imap, ssh, odoo
 };
 
+const hostOf = (v: Record<string, string>) => { try { return new URL(v.url || v.host || "").host || "de server"; } catch { return v.host || "de server"; } };
+
 export async function runDriver(spec: string, c: DriverCtx): Promise<DriverResult> {
   const [name, action] = spec.split(":");
   const d = DRIVERS[name];
@@ -399,8 +404,10 @@ export async function runDriver(spec: string, c: DriverCtx): Promise<DriverResul
   await assertTargetsAllowed(c.values as Record<string, unknown>);
   try { return await d(action, c); }
   catch (e) {
-    const err = e as Error & { code?: string };
-    const msg = err.message || err.code || String(e);
+    const err = e as Error & { code?: string; cause?: { code?: string } };
+    let msg = err.message || err.code || String(e);
+    if (msg === "fetch failed") msg = `${hostOf(c.values)} niet bereikbaar${err.cause?.code ? ` (${err.cause.code})` : ""}`;
+    else if (err.name === "TimeoutError") msg = `geen antwoord van ${hostOf(c.values)}`;
     throw new Error(msg.startsWith(`${c.def.name}:`) || msg.startsWith(`${c.def.name.split(" ")[0]}:`) ? msg : `${c.def.name}: ${msg}`);
   }
 }

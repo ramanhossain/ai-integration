@@ -83,7 +83,7 @@ class Registry {
     }
   }
 
-  upsertIntegration(input: Integration, extra: { note?: string; restoredFrom?: number; create?: boolean } = {}): Integration {
+  upsertIntegration(input: Integration, extra: { note?: string; restoredFrom?: number; create?: boolean; by?: string } = {}): Integration {
     this.check(input, Boolean(extra.create));
     const { create: _c, ...meta } = extra;
     extra = meta;

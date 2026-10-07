@@ -1,7 +1,7 @@
 import type { EnvName } from "../domain/environments";
 import { deployments } from "../domain/deployments";
 import { runDeployed } from "../runtime/dispatch";
-import { publicError } from "../triggers/manager";
+import { failure } from "../triggers/manager";
 import { safeFetch } from "../net/egress";
 import { apim, type ApiDoc, type Operation, type Policy, type OpLink } from "./apim";
 import { parseJwt, verifyJwt, checkRules, claimValue } from "./jwt";
@@ -10,6 +10,9 @@ import { parseJwt, verifyJwt, checkRules, claimValue } from "./jwt";
 // Volgorde: API en operatie zoeken → CORS → beleid (zonder beleid geen toegang) →
 // IP-beperking → authenticatie (OAuth → API-sleutel → publiek) → throttling (endpoint en
 // identiteit) → proces of passthrough → monitoring (velden volgens het beleid).
+
+// Body die geen geldige JSON was (de parser geeft dit door; de gateway antwoordt 400 na de toegangscontrole).
+export const INVALID_JSON = Object.freeze({ __invalidJson: true });
 
 export interface GwRequest { method: string; path: string; rawQuery: string; query: Record<string, unknown>; headers: Record<string, unknown>; body: unknown; ip: string; baseUrl: string }
 export interface GwResponse { status: number; headers: Record<string, string>; body: unknown }
@@ -149,6 +152,8 @@ export async function handleGateway(env: EnvName, req: GwRequest): Promise<GwRes
     if (!tId.ok) return finish(429, { error: "Te veel aanvragen" }, { outcome: "throttled", identity }, { "retry-after": String(tId.retryAfter) });
   }
 
+  if (req.body === INVALID_JSON) return finish(400, { error: "Ongeldige JSON in de body" }, { outcome: "ongeldige json", identity });
+
   // Uitvoeren: gekoppeld proces of passthrough.
   const link: OpLink | undefined = (op && doc.links[op.key]) || (doc.passthroughAll?.target ? doc.passthroughAll : undefined);
   if (!link || link.mode === "none") return finish(501, { error: `Operatie ${op?.key} is nog niet gekoppeld aan een proces` }, { outcome: "niet gekoppeld", identity });
@@ -171,7 +176,7 @@ async function runProcess(env: EnvName, req: GwRequest, op: Operation, params: R
   const input = { ...body, params, query, headers, _trigger: { type: "api", env, method: req.method, path: req.path, operation: op.operationId || op.key, identity, firedAt: new Date().toISOString() } };
   const run = await runDeployed(def, env, input, { triggeredBy: "api" });
   const extra = { target: name, runId: run.id, processVersion: Number(def.version), identity };
-  if (run.status !== "success") return finish(500, { error: publicError(env, run.error), runId: run.id }, { ...extra, outcome: "proces gefaald", error: run.error });
+  if (run.status !== "success") { const f = failure(env, run); return finish(f.status, { error: f.error, runId: run.id }, { ...extra, outcome: f.status === 422 ? "validatie" : "proces gefaald", error: run.error }); }
   const custom = run.output?._response as { status?: number; body?: unknown; headers?: Record<string, string> } | undefined;
   if (custom) return finish(Number(custom.status || 200), custom.body ?? null, extra, Object.fromEntries(Object.entries(custom.headers || {}).map(([k, v]) => [k.toLowerCase(), String(v)])));
   const out = Object.fromEntries(Object.entries(run.output ?? {}).filter(([k]) => !k.startsWith("_") && !["params", "query", "headers"].includes(k)));
@@ -187,7 +192,6 @@ async function passthrough(req: GwRequest, doc: ApiDoc, op: Operation | undefine
   const remove = new Set([...(link.removeHeaders || []), "cookie", "x-aip-user"]);
   const headers: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k.toLowerCase()) && !remove.has(k.toLowerCase())) headers[k] = Array.isArray(v) ? v.join(", ") : String(v);
-  // API-sleutel van de afnemer niet doorsturen naar de achterliggende API.
   // Sleutels/tokens van de afnemer niet doorsturen naar de achterliggende API.
   for (const k of Object.keys(headers)) if (sens.headers.has(k.toLowerCase())) delete headers[k];
   // Ingestelde headers vervangen bestaande (hoofdletterongevoelig).
@@ -197,7 +201,8 @@ async function passthrough(req: GwRequest, doc: ApiDoc, op: Operation | undefine
   const ct = res.headers.get("content-type") || "";
   const buf = Buffer.from(await res.arrayBuffer());
   const outHeaders: Record<string, string> = {};
-  res.headers.forEach((v, k) => { if (!HOP.has(k) && k !== "content-encoding" && k !== "set-cookie") outHeaders[k] = v; });
+  // CORS-headers volgen het beleid, niet het doelsysteem.
+  res.headers.forEach((v, k) => { if (!HOP.has(k) && k !== "content-encoding" && k !== "set-cookie" && !k.startsWith("access-control-")) outHeaders[k] = v; });
   const body = /json/.test(ct) ? (() => { try { return JSON.parse(buf.toString("utf8")); } catch { return buf.toString("utf8"); } })() : /^text\/|xml/.test(ct) ? buf.toString("utf8") : buf;
   return finish(res.status, body, { target: url.replace(/\?.*$/, ""), identity, outcome: res.status < 400 ? "ok" : "fout van doelsysteem" }, outHeaders);
 }

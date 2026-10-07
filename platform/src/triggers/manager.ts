@@ -27,6 +27,14 @@ export function publicError(env: EnvName, err: string | undefined): string {
   return env === "dev" ? err || "Proces gefaald" : "Proces gefaald; zie de run voor details";
 }
 
+// HTTP-antwoord bij een gefaalde run: een validatiestap → 422 met de ontbrekende velden
+// (gaat over de invoer van de aanroeper); anders 500 zonder interne details buiten DEV.
+export function failure(env: EnvName, run: Run): { status: number; error: string } {
+  const failed = run.steps.find((s) => s.status === "failed");
+  if (failed?.type === "validate") return { status: 422, error: failed.error || run.error || "Validatie faalde" };
+  return { status: 500, error: publicError(env, run.error) };
+}
+
 interface ActiveTrigger {
   key: string;
   integration: string;
@@ -112,7 +120,7 @@ class TriggerManager {
     const run = await runDeployed(def, t.env, input, { triggeredBy: t.type });
     t.lastRunId = run.id;
     t.lastStatus = run.status;
-    if (run.status !== "success") { t.errors++; t.lastError = run.error; }
+    if (run.status !== "success") { t.errors++; t.lastError = run.error; } else t.lastError = undefined;
     bus.publish("trigger.fired", { integration: t.integration, env: t.env, type: t.type, runId: run.id, status: run.status });
     return run;
   }
@@ -235,7 +243,7 @@ class TriggerManager {
     st.lastFiredAt = new Date().toISOString();
     const exec = runDeployed(def, env, input, { triggeredBy: "webhook" }).then((run) => {
       st.lastRunId = run.id; st.lastStatus = run.status;
-      if (run.status !== "success") { st.errors++; st.lastError = run.error; }
+      if (run.status !== "success") { st.errors++; st.lastError = run.error; } else st.lastError = undefined;
       bus.publish("trigger.fired", { integration: def.integration, env, type: "webhook", runId: run.id, status: run.status });
       return run;
     });
@@ -245,7 +253,7 @@ class TriggerManager {
     if (run.status === "success" && custom) return { status: Number(custom.status || 200), body: custom.body ?? null };
     return run.status === "success"
       ? { status: 200, body: { runId: run.id, status: run.status, output: run.output } }
-      : { status: 500, body: { runId: run.id, status: run.status, error: publicError(env, run.error) } };
+      : (() => { const f = failure(env, run); return { status: f.status, body: { runId: run.id, status: run.status, error: f.error } }; })();
   }
 
   // ---------- API-endpoints (API-management) ----------
@@ -288,6 +296,7 @@ class TriggerManager {
     if (this.paused.has(k(env, def.integration))) return { status: 503, body: { error: "API-endpoint is gepauzeerd" } };
     try { if (!this.checkApiKey(trig, env, req.headers)) return { status: 401, body: { error: "Ongeldige of ontbrekende API-key" } }; }
     catch (e) { return { status: 500, body: { error: (e as Error).message } }; }
+    if ((req.body as { __invalidJson?: boolean } | undefined)?.__invalidJson) return { status: 400, body: { error: "Ongeldige JSON in de body" } };
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? (req.body as Record<string, unknown>) : req.body === undefined ? {} : { body: req.body };
     const input = { ...body, params, query: req.query, _trigger: { type: "api", env, method: req.method, path, firedAt: new Date().toISOString() } };
     const key = k(env, def.integration);
@@ -297,9 +306,9 @@ class TriggerManager {
     st.lastFiredAt = new Date().toISOString();
     const run = await runDeployed(def, env, input, { triggeredBy: "api" });
     st.lastRunId = run.id; st.lastStatus = run.status;
-    if (run.status !== "success") { st.errors++; st.lastError = run.error; }
+    if (run.status !== "success") { st.errors++; st.lastError = run.error; } else st.lastError = undefined;
     bus.publish("trigger.fired", { integration: def.integration, env, type: "api", runId: run.id, status: run.status });
-    if (run.status !== "success") return { status: 500, body: { error: publicError(env, run.error), runId: run.id } };
+    if (run.status !== "success") { const f = failure(env, run); return { status: f.status, body: { error: f.error, runId: run.id } }; }
     const custom = run.output?._response as { status?: number; body?: unknown } | undefined;
     if (custom) return { status: Number(custom.status || 200), body: custom.body ?? null };
     // Schoon antwoord: interne velden (_trigger, _branch, _logs …) en de invoer-metadata eruit.

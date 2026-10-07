@@ -284,7 +284,8 @@
           <button data-pc="in" title="Inzoomen" aria-label="Inzoomen"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M11 8v6M8 11h6M16 16l4 4"/></svg></button>
           <button data-pc="out" title="Uitzoomen" aria-label="Uitzoomen"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M8 11h6M16 16l4 4"/></svg></button>
           ${readonly ? "" : `<button data-pc="tidy" title="Opruimen (automatische layout)" aria-label="Opruimen"><svg viewBox="0 0 24 24"><path d="M4 6h7M4 12h7M4 18h7M15 6h5M15 12h5M15 18h5"/></svg></button>
-          <button data-pc="undo" title="Ongedaan maken (Ctrl/Cmd+Z)" aria-label="Ongedaan maken"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>`}
+          <button data-pc="undo" title="Ongedaan maken (Ctrl/Cmd+Z)" aria-label="Ongedaan maken"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+          <button data-pc="redo" title="Opnieuw (Ctrl/Cmd+Shift+Z)" aria-label="Opnieuw"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>`}
         </div>
         ${readonly ? "" : `<div class="pc-tools" role="toolbar" aria-label="BPMN-elementen">${TOOLS.map((t) => t === "|" ? '<span class="sep"></span>' : `<button type="button" draggable="true" data-tool="${t[0]}" title="${esc(t[1])} — klik of sleep naar het canvas" aria-label="${esc(t[1])}"><svg viewBox="0 0 28 28">${t[2]}</svg></button>`).join("")}</div>
         <div class="pc-hint ${def.steps.length > 3 ? "hide" : ""}">Sleep een element uit de balk links · sleep van een uitgang (●) naar een ingang om te verbinden · dubbelklik om te openen · Delete verwijdert</div>
@@ -496,7 +497,7 @@
       const baseName = pl ? pl.name : t.label;
       const count = def.steps.filter((s) => (s.name || "").startsWith(baseName)).length;
       const node = { id, type, name: count ? `${baseName} ${count + 1}` : baseName, config: clone(t.def) };
-      if (pl) { node.config.plugin = pl.id; node.config.target = pl.id.replace(/-/g, "_"); }
+      if (pl) { node.config.plugin = pl.id; node.config.target = id; } // stap-id = uniek doelveld (twee stappen van dezelfde plugin overschrijven elkaar niet)
       const g = geom(node);
       let pos;
       if (ctx && ctx.at) pos = freeSpot(snap(ctx.at.x - g.w / 2), snap(ctx.at.y - g.h / 2));
@@ -531,8 +532,13 @@
       const set = new Set(ids.filter((id) => id !== "start"));
       if (!set.size) return;
       pushHistory();
+      // Eén ingang en één uitgang (stap of keten midden in de flow): de buren weer verbinden, geen gat.
+      const ins = def.connections.filter((c) => !set.has(c.from) && set.has(c.to));
+      const outs = def.connections.filter((c) => set.has(c.from) && !set.has(c.to));
       def.steps = def.steps.filter((s) => !set.has(s.id));
       def.connections = def.connections.filter((c) => !set.has(c.from) && !set.has(c.to));
+      if (ins.length === 1 && outs.length === 1 && ins[0].from !== outs[0].to && !def.connections.some((c) => c.from === ins[0].from && c.to === outs[0].to && c.port === ins[0].port))
+        def.connections.push(ins[0].port ? { from: ins[0].from, to: outs[0].to, port: ins[0].port } : { from: ins[0].from, to: outs[0].to });
       cleanupGroups();
       selected = null;
       multi = new Set();
@@ -569,10 +575,11 @@
         x2 = Math.max(x2, n.position.x + g.w + 60); y2 = Math.max(y2, n.position.y + g.h + 45);
       }
       // Links ruimte houden voor de gereedschapsbalk; boven voor datastores/labels.
-      const padL = readonly ? 40 : 110, padR = 40, padY = 50;
-      x1 -= 10; y1 -= 70;
-      const availW = r.width - padL - padR, availH = r.height - padY * 2;
-      const k = Math.max(0.3, Math.min(1.1, availW / (x2 - x1), availH / (y2 - y1)));
+      // Alleen-lezen (bv. versievergelijking in een klein vlak): krappere marges en verder uitzoomen, zodat alles past.
+      const padL = readonly ? 16 : 110, padR = readonly ? 16 : 40, padY = readonly ? 16 : 50;
+      x1 -= readonly ? 30 : 10; y1 -= readonly ? 40 : 70;
+      const availW = Math.max(40, r.width - padL - padR), availH = Math.max(40, r.height - padY * 2);
+      const k = Math.max(readonly ? 0.12 : 0.3, Math.min(1.1, availW / (x2 - x1), availH / (y2 - y1)));
       view = { k, x: padL + (availW - (x2 - x1) * k) / 2 - x1 * k, y: padY + (availH - (y2 - y1) * k) / 2 - y1 * k };
       applyView();
     }
@@ -647,6 +654,7 @@
       if (a === "out") zoomCenter(1 / 1.2);
       if (a === "tidy") { pushHistory(); tidy(def); draw(); fit(); changed(); }
       if (a === "undo") doUndo();
+      if (a === "redo") doRedo();
     });
     const tools = root.querySelector(".pc-tools");
     if (tools) {
@@ -859,7 +867,7 @@
       st.type = type;
       st.name = pl ? pl.name : TYPES[type].label;
       st.config = clone(TYPES[type].def);
-      if (pl) { st.config.plugin = pl.id; st.config.target = pl.id.replace(/-/g, "_"); }
+      if (pl) { st.config.plugin = pl.id; st.config.target = st.id.replace(/[^A-Za-z0-9_]/g, "_"); }
       delete st.pinData;
       // Bij een andere vorm (bv. beslissing -> taak) op hetzelfde middelpunt zetten.
       const g = geom(st);

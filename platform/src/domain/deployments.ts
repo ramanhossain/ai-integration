@@ -50,7 +50,7 @@ class Deployments {
 
   // Nieuwe versie vastleggen (op DEV). Aangeroepen wanneer een integratie wordt
   // aangemaakt, gewijzigd of een oude versie wordt teruggezet.
-  recordNewVersion(def: Integration, extra: { note?: string; restoredFrom?: number } = {}): DeploymentState {
+  recordNewVersion(def: Integration, { by: actor, ...extra }: { note?: string; restoredFrom?: number; by?: string } = {}): DeploymentState {
     let s = this.states.get(def.integration);
     if (!s) {
       s = { integration: def.integration, latestVersion: 0, envs: emptyEnvs() };
@@ -63,7 +63,7 @@ class Deployments {
     persistence.put("versions", `${def.integration}@${version}`, snapshot);
     const prevDev = s.envs.dev;
     s.envs.dev = version; // op DEV meteen actief
-    const by = def.owner ?? "builder-agent";
+    const by = actor ?? def.owner ?? "builder-agent";
     const m: VersionMeta = { createdAt: new Date().toISOString(), createdBy: by, ...extra };
     this.meta.set(`${def.integration}@${version}`, m);
     persistence.put("version-meta", `${def.integration}@${version}`, m);
@@ -180,7 +180,7 @@ class Deployments {
       const def = this.snapshots.get(`${name}@${v}`);
       if (!def) continue;
       const m = this.meta.get(`${name}@${v}`);
-      out.push({ version: v, createdAt: m?.createdAt, createdBy: m?.createdBy ?? def.owner, note: m?.note, restoredFrom: m?.restoredFrom, activeOn: ENVIRONMENTS.filter((e) => s.envs[e] === v), steps: (def.steps || []).filter((x) => x.type !== "end").length, trigger: def.trigger?.type });
+      out.push({ version: v, createdAt: m?.createdAt, createdBy: m?.createdBy ?? def.owner, note: m?.note, restoredFrom: m?.restoredFrom, activeOn: ENVIRONMENTS.filter((e) => s.envs[e] === v), steps: (def.steps || []).length, trigger: def.trigger?.type });
     }
     return out;
   }
