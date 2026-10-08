@@ -608,12 +608,13 @@
     function renderPicker(q) {
       const list = picker.querySelector(".pk-list");
       const query = (q || "").toLowerCase();
-      const plugItems = pluginList().filter((p) => query && (p.name.toLowerCase().includes(query) || p.category.toLowerCase().includes(query) || p.description.toLowerCase().includes(query))).slice(0, 25);
+      // Geactiveerde plugins: zonder zoekterm allemaal (max. 25), anders gefilterd.
+      const plugItems = pluginList().filter((p) => !query || (p.name.toLowerCase().includes(query) || p.category.toLowerCase().includes(query) || p.description.toLowerCase().includes(query))).slice(0, 25);
       list.innerHTML = GROUPS.map((grp) => {
         const items = Object.entries(TYPES).filter(([k, t]) => t.group === grp && (!query || t.label.toLowerCase().includes(query) || t.desc.toLowerCase().includes(query) || k.includes(query)));
         const extra = grp === "Plugins" ? plugItems.map((p) => `<button class="pk-it" data-type="connector" data-plugin="${esc(p.id)}"><span class="pk-ic plug pl-ic logo" style="border-color:${esc(p.color || "#0e7490")};color:${esc(p.color || "#0e7490")}" data-initials="${esc(p.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}"><img src="/api/v1/plugins/${encodeURIComponent(p.id)}/logo" alt="" loading="lazy"></span><span><b>${esc(p.name)}</b><small>${esc(p.description)}</small></span></button>`).join("") : "";
         if (!items.length && !extra) return "";
-        return `<div class="pk-g">${grp}${grp === "Plugins" && !query ? ` <span class="faint" style="font-weight:400">· typ een naam, bv. Slack of Google Sheets</span>` : ""}</div>` + items.map(([k, t]) => `<button class="pk-it" data-type="${k}"><span class="pk-ic" style="border-color:${t.color}"><svg viewBox="0 0 24 24" width="22" height="22">${iconSvg(k, t.color, 24, 0, 0, 1.8)}</svg></span><span><b>${t.label}</b><small>${t.desc}</small></span></button>`).join("") + extra;
+        return `<div class="pk-g">${grp}${grp === "Plugins" && !query ? ` <span class="faint" style="font-weight:400">· ${pluginList().length ? `${pluginList().length} geactiveerd · ` : "nog geen plugins geactiveerd · "}<a href="#plugins">plugins activeren</a></span>` : ""}</div>` + items.map(([k, t]) => `<button class="pk-it" data-type="${k}"><span class="pk-ic" style="border-color:${t.color}"><svg viewBox="0 0 24 24" width="22" height="22">${iconSvg(k, t.color, 24, 0, 0, 1.8)}</svg></span><span><b>${t.label}</b><small>${t.desc}</small></span></button>`).join("") + extra;
       }).join("") || `<div class="empty">Geen elementen gevonden.</div>`;
     }
     function openPicker(ctx) {
@@ -1565,6 +1566,27 @@
         F.select("response", "Antwoord", t.response || "result", [["result", "wachten op resultaat (200/500)"], ["accepted", "direct 202 Accepted"]], "Een proces kan zelf antwoorden met een veld <code>_response: { status, body }</code>.") +
         `<label>URL per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${esc(location.origin)}${esc((window.AIP_ME && window.AIP_ME.org && window.AIP_ME.org.pathPrefix) || "")}/hooks/${e}/${esc(path)}</code></div>`).join("")}</div>` +
         hintHtml("Actief op elke omgeving waar deze versie gedeployed is.");
+    } else if (t.type === "api" && (ctx.apiEndpoints || []).length || t.type === "api" && t.apiId) {
+      // Endpoint uit API-beheer kiezen (spec + beleid + monitoring), of een los endpoint.
+      const eps = ctx.apiEndpoints || [];
+      const cur = t.apiId ? `${t.apiId}|${t.operation}` : "";
+      const byApi = [...new Set(eps.map((e) => e.api))];
+      const id = "f-apilink";
+      html += `<label for="${id}">API-endpoint</label><select class="f" id="${id}" data-k="apiLink" data-rerender><option value="">— los endpoint (eigen pad, zonder API-beheer) —</option>${byApi.map((a) => `<optgroup label="${esc(a)}">${eps.filter((e) => e.api === a).map((e) => `<option value="${esc(e.apiId + "|" + e.key)}" ${cur === e.apiId + "|" + e.key ? "selected" : ""}>${esc(e.method)} ${esc(e.path)}${e.summary ? " — " + esc(e.summary) : ""}${e.linkedTo && e.linkedTo !== name ? ` (nu: ${esc(e.linkedTo)})` : ""}</option>`).join("")}</optgroup>`).join("")}</select>` +
+        hintHtml("Kies een endpoint uit <a href=\"#apis\">API-beheer</a>. Bij opslaan wordt het aan dit proces gekoppeld; beveiliging, throttling en monitoring komen uit het API-beleid.");
+      const ep = eps.find((e) => e.apiId === t.apiId && e.key === t.operation);
+      if (t.apiId) {
+        html += ep ? `<label>Endpoint per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${esc(ep.method)} ${esc(location.origin)}${esc((window.AIP_ME && window.AIP_ME.org && window.AIP_ME.org.pathPrefix) || "")}/apis/${e}${esc(ep.path)}</code></div>`).join("")}</div>` + hintHtml("Bereikbaar op elke omgeving waar zowel de API als dit proces gedeployed zijn. Padparameters komen in <code>params</code>, de query in <code>query</code>.")
+          : `<div class="xf-note warn">Het gekozen API-endpoint bestaat niet meer. Kies een ander endpoint.</div>`;
+      } else {
+        const path = String(t.path || `${String(name).toLowerCase()}/{id}`).replace(/^\//, "");
+        const method = String(t.method || "GET").toUpperCase();
+        html += F.text("path", "Pad", t.path, `${String(name).toLowerCase()}/{id}`, "Gebruik <code>{naam}</code> voor padparameters.") +
+          F.select("method", "Methode", method, ["GET", "POST", "PUT", "PATCH", "DELETE"], "", true) +
+          F.select("auth", "Beveiliging", t.auth || "none", [["none", "geen"], ["apikey", "API-key (header)"]], "", true) +
+          (t.auth === "apikey" ? F.cred("API-key (koppeling)", t.credential, ["api-key"], ctx, "Per omgeving een andere sleutel.") : "") +
+          `<label>Endpoint per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${method} ${esc(location.origin)}/apis/${e}/${esc(path)}</code></div>`).join("")}</div>`;
+      }
     } else if (t.type === "api") {
       const path = String(t.path || `${String(name).toLowerCase()}/{id}`).replace(/^\//, "");
       const method = String(t.method || "GET").toUpperCase();
@@ -1729,6 +1751,14 @@
         const prevType = def.trigger?.type;
         let trig = readInto(form, def.trigger);
         if (trig.type !== prevType) trig = { type: trig.type }; // ander type: schone configuratie
+        // API-trigger: endpoint uit API-beheer gekozen -> methode/pad overnemen; leeg = los endpoint.
+        if ("apiLink" in trig) {
+          const [apiId, ...op] = String(trig.apiLink || "").split("|");
+          delete trig.apiLink;
+          const ep = apiId ? (ctx.apiEndpoints || []).find((e) => e.apiId === apiId && e.key === op.join("|")) : null;
+          if (ep) Object.assign(trig, { apiId: ep.apiId, operation: ep.key, method: ep.method, path: ep.path.replace(/^\//, "") });
+          else if (!apiId) { delete trig.apiId; delete trig.operation; }
+        }
         def.trigger = trig;
         const kind = $n("#ndv-kind");
         if (kind) kind.textContent = (TRIGGERS[trig.type] || { label: trig.type }).label;

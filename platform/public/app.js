@@ -79,13 +79,15 @@ $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal" || e.
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
 // ---------- plugins (connectors) voor de editor ----------
+// Alleen geactiveerde plugins zijn in de proceseditor te kiezen (activeren op de pagina Plugins).
 async function loadPluginList() {
   try {
     const r = await api("/api/v1/plugins?status=beschikbaar");
-    window.AIP_PLUGINS = r.items.map((p) => ({ id: p.id, name: p.name, category: p.category, description: p.description, color: p.color }));
+    window.AIP_PLUGINS = r.items.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, category: p.category, description: p.description, color: p.color }));
     if (S.canvas && S.canvas.redraw) S.canvas.redraw();
   } catch { window.AIP_PLUGINS = []; }
 }
+window.loadPluginList = loadPluginList;
 
 // ---------- meervoudige selectie in tabellen ----------
 // Rij: selCell(sleutel); kop: selHead(); actiebalk: bulkBar(scope, acties) in dezelfde .card.
@@ -158,8 +160,11 @@ function route() {
   // Een open venster hoort bij de vorige pagina (anders werkt het op het verkeerde proces).
   if (!$("#modal").classList.contains("hide")) closeModal();
   const [view, ...rest] = (location.hash.replace(/^#/, "") || "dashboard").split("/");
-  S.view = VIEWS[view] ? view : "dashboard";
-  S.param = rest.length ? decodeURIComponent(rest.join("/")) : null;
+  const nextView = VIEWS[view] ? view : "dashboard", nextParam = rest.length ? decodeURIComponent(rest.join("/")) : null;
+  // Weg uit een nieuw (niet-opgeslagen) proces: als concept bewaren; "Nieuw proces" begint daarna weer leeg.
+  if (S.editor && S.editor.isNew && !(nextView === "editor" && nextParam === S.editor.name)) { saveDraft(S.editor); S.editor = null; }
+  S.view = nextView;
+  S.param = nextParam;
   document.querySelectorAll("[data-nav]").forEach((a) => {
     const nav = a.dataset.nav;
     const active = nav === S.view || (S.view === "editor" && nav === "processes") || (S.view === "instance" && nav === "instances");
@@ -279,7 +284,8 @@ VIEWS.dashboard = async (main) => {
 
 // PROCESSEN
 VIEWS.processes = async (main) => {
-  const [list, deps, trigs] = await Promise.all([api("/api/v1/integrations"), api("/api/v1/deployments"), api("/api/v1/triggers")]);
+  if (S.pendingDraft) await S.pendingDraft.catch(() => {}); // net verlaten nieuw proces eerst als concept bewaren
+  const [list, deps, trigs, drafts] = await Promise.all([api("/api/v1/integrations"), api("/api/v1/deployments"), api("/api/v1/triggers"), api("/api/v1/drafts").catch(() => [])]);
   const depOf = (n) => deps.find((d) => d.integration === n);
   const trigOf = (n) => trigs.find((t) => t.integration === n && t.env === S.env);
   const status = (n) => {
@@ -305,7 +311,11 @@ VIEWS.processes = async (main) => {
     return `<tr>${selCell(i.integration)}<td><a href="#editor/${encodeURIComponent(i.integration)}"><b>${esc(i.integration)}</b></a><div class="faint" style="font-size:.78rem;max-width:320px">${esc(i.description || "")}</div></td>
       <td><span class="chip info">${esc((PC.TRIGGERS[i.trigger?.type] || { label: i.trigger?.type }).label)}</span></td><td>${status(i.integration)}</td><td class="ver"><button type="button" class="ver-dd" data-act="version-menu" data-name="${esc(i.integration)}" data-ico-done aria-haspopup="menu" title="Versies: vergelijken of terugzetten">v${esc(i.version)} <svg class="ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></td>${cells}
       <td><div class="row icons" style="justify-content:flex-end;flex-wrap:nowrap">${S.env === "dev" ? iconBtn("edit", "Bewerken op DEV", `data-go="editor/${encodeURIComponent(i.integration)}"`) : iconBtn("eye", "Bekijken (alleen-lezen)", `data-go="editor/${encodeURIComponent(i.integration)}"`)}${iconBtn("rocket", "Deployen naar TEST, ACC of PROD (ook overslaan of terugzetten)", `data-act="deploy-dialog" data-name="${esc(i.integration)}"`)}${iconBtn("history", "Versies: terugzetten of vergelijken", `data-act="versions" data-name="${esc(i.integration)}"`)}${iconBtn("download", "Exporteren als JSON", `data-act="export" data-name="${esc(i.integration)}"`)}${d.envs[S.env] != null ? iconBtn("play", `Uitvoeren op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}"`, "sm run") : iconBtn("play", `Niet gedeployed op ${S.env.toUpperCase()}`, `data-act="run" data-name="${esc(i.integration)}" disabled`, "sm sec")}</div></td></tr>`;
-  }).join("")}</tbody></table>` : `<div class="empty">Nog geen processen. Maak er een met “+ Nieuw proces” of met de AI-assistent.</div>`}</div></div>`;
+  }).join("")}</tbody></table>` : `<div class="empty">Nog geen processen. Maak er een met “+ Nieuw proces” of met de AI-assistent.</div>`}</div></div>
+  ${drafts.length ? `<div class="card" style="margin-top:14px"><div class="ch"><h3>${ic("edit")} Concepten (${drafts.length})</h3><span class="faint">Nieuwe processen die nog niet zijn opgeslagen. Open een concept en sla het op om er een proces van te maken.</span></div><div class="tw"><table><thead><tr><th>Concept</th><th>Stappen</th><th>Laatst gewijzigd</th><th>Door</th><th></th></tr></thead><tbody>
+    ${drafts.map((d) => `<tr><td><a href="#editor/~${esc(d.id)}"><b>${esc(d.name)}</b></a> <span class="chip warn">concept</span></td><td class="mono">${d.steps}</td><td class="mono">${esc(fmtDateTime(d.updatedAt))}</td><td>${esc(d.by || "")}</td>
+      <td><div class="row icons" style="justify-content:flex-end;flex-wrap:nowrap">${iconBtn("edit", "Verder bewerken", `data-go="editor/~${esc(d.id)}"`)}${iconBtn("trash", "Concept verwijderen", `data-act="draft-del" data-id="${esc(d.id)}" data-name="${esc(d.name)}"`, "sm no")}</div></td></tr>`).join("")}
+  </tbody></table></div></div>` : ""}`;
 };
 
 // ACC/PROD: DEV-versie direct deployen en de omgevingen ertussen overslaan. Opent de
@@ -354,6 +364,23 @@ const NEW_DEF = () => ({
   approval: { productionDeployment: "required" }
 });
 const verLabel = (r) => (r.test ? "test" : `v${r.version ?? "?"}`);
+// Concepten: een nieuw proces dat je verlaat zonder op te slaan, wordt op de server bewaard
+// en staat op de pagina Processen. Niets gewijzigd = geen concept.
+const newDraftId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
+function saveDraft(E, keepalive = false) {
+  if (!E || !E.isNew || !E.def) return;
+  const def = cleanDef(E.def);
+  const text = JSON.stringify(def);
+  if (E.initial !== undefined && JSON.stringify(E.def) === E.initial) return; // niets gewijzigd
+  if (!E.draftId) E.draftId = newDraftId();
+  E.initial = JSON.stringify(E.def);
+  const url = `/api/v1/drafts/${E.draftId}`, body = `{"def":${text}}`;
+  if (keepalive) { try { fetch(url, { method: "POST", keepalive: body.length < 60000, headers: { "content-type": "application/json", "x-aip-user": who() }, body }); } catch {} return; }
+  S.pendingDraft = fetch(url, { method: "PUT", headers: { "content-type": "application/json", "x-aip-user": who() }, body })
+    .then((r) => { if (r.ok) toast(`"${def.integration || "Naamloos"}" bewaard als concept (zie Processen)`); else toast("Concept bewaren mislukt", true); })
+    .catch(() => toast("Concept bewaren mislukt", true))
+    .finally(() => { S.pendingDraft = null; });
+}
 function destroyCanvas() {
   if (S.canvas) { S.canvas.destroy(); S.canvas = null; }
   PC.closeNodeDetail();
@@ -367,11 +394,17 @@ VIEWS.editor = async (main) => {
   if (!S.editor || S.editor.name !== name) {
     let E;
     if (name === "new" || !name) {
-      // Standaardnaam die nog niet bestaat (NieuwProces, NieuwProces2, …).
-      const taken = new Set((await api("/api/v1/integrations").catch(() => [])).map((x) => x.integration));
+      // Standaardnaam die nog niet bestaat, ook niet als concept (NieuwProces, NieuwProces2, …).
+      const [procs, drafts] = await Promise.all([api("/api/v1/integrations").catch(() => []), api("/api/v1/drafts").catch(() => [])]);
+      const taken = new Set([...procs.map((x) => x.integration), ...drafts.map((x) => x.name)]);
       const def0 = NEW_DEF();
       for (let i = 2; taken.has(def0.integration); i++) def0.integration = `NieuwProces${i}`;
-      E = { name, isNew: true, def: def0, dirty: true, state: null };
+      E = { name, isNew: true, def: def0, dirty: true, state: null, draftId: newDraftId() };
+    }
+    else if (name.startsWith("~")) {
+      // Concept (draft): verder bewerken; opslaan maakt er een echt proces van.
+      const dr = await api(`/api/v1/drafts/${encodeURIComponent(name.slice(1))}`);
+      E = { name, isNew: true, def: JSON.parse(JSON.stringify(dr.def)), dirty: true, state: null, draftId: dr.id, triggerAsked: true };
     }
     else {
       const [def, state] = await Promise.all([
@@ -381,6 +414,7 @@ VIEWS.editor = async (main) => {
       E = { name, isNew: false, def: JSON.parse(JSON.stringify(def)), dirty: false, state };
     }
     PC.normalize(E.def);
+    if (E.isNew) E.initial = JSON.stringify(E.def);
     E.tab = "editor";
     E.lastRun = null;
     E.testInput = localGet(`aip.test.${name}`) || DEFAULT_TEST_INPUT;
@@ -704,17 +738,19 @@ function markDirty() {
 }
 
 async function loadEditorCtx(current) {
-  const [creds, ints, tables, queues] = await Promise.all([
+  const [creds, ints, tables, queues, apiEndpoints] = await Promise.all([
     api("/api/v1/credentials").catch(() => ({ items: [] })),
     api("/api/v1/integrations").catch(() => []),
     api("/api/v1/datatables/dev").catch(() => []),
-    api("/api/v1/queues?env=dev").catch(() => [])
+    api("/api/v1/queues?env=dev").catch(() => []),
+    api("/api/v1/apim/endpoints").catch(() => [])
   ]);
   return {
     credentials: creds.items.map((c) => ({ name: c.name, type: c.type, plugin: c.plugin, envs: c.envs })),
     processes: ints.map((i) => i.integration).filter((n) => n !== current),
     tables: tables.map((t) => ({ name: t.name, columns: t.columns })),
-    queues: [...new Set(queues.filter((q) => !q.isDeadLetter).map((q) => q.queue))]
+    queues: [...new Set(queues.filter((q) => !q.isDeadLetter).map((q) => q.queue))],
+    apiEndpoints
   };
 }
 
@@ -974,6 +1010,7 @@ async function saveEditor() {
   if (E.isNew) qs.set("create", "true");
   const saved = await api(`/api/v1/integrations${qs.toString() ? `?${qs}` : ""}`, { body: { ...cleanDef(E.def), owner: who() } });
   if (E.isNew) localSet(`aip.test.${saved.integration}`, E.testInput);
+  if (E.draftId) api(`/api/v1/drafts/${E.draftId}`, { method: "DELETE" }).catch(() => {});
   toast(`Opgeslagen als v${saved.version} op DEV`);
   S.editor = null;
   go(`editor/${encodeURIComponent(saved.integration)}`);
@@ -1412,6 +1449,7 @@ document.addEventListener("click", async (e) => {
     if (act === "ev-tab") { S.envViewTab = b.dataset.tab; render(); }
     if (act === "to-dev") { S.env = "dev"; localSet("aip.env", "dev"); renderEnvs(); toast("Omgeving: Development — hier kun je bewerken"); render(); }
     if (act === "deploy-dialog") { if (!document.getElementById("modal").classList.contains("hide")) closeModal(); await deployDialog(b.dataset.name, b.dataset.env, b.dataset.v); }
+    if (act === "draft-del") { if (await askConfirm("Concept verwijderen?", `<p>Concept <b>${esc(b.dataset.name)}</b> wordt definitief verwijderd.</p>`, "Verwijderen")) { await api(`/api/v1/drafts/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); toast("Concept verwijderd"); render(); } }
     if (act === "ver-view") await viewVersion(b.dataset.name, b.dataset.v);
     if (act === "ver-compare") await versionsModal(b.dataset.name, "compare", b.dataset.a ? { a: Number(b.dataset.a), b: Number(b.dataset.b) } : {});
     if (act === "ver-restore") await restoreVersion(b.dataset.name, Number(b.dataset.v), b.dataset.dirty === "1");
@@ -1476,5 +1514,6 @@ setInterval(refreshStatus, 15000);
 
 // Waarschuwen bij sluiten/verversen met niet-opgeslagen wijzigingen in de editor.
 window.addEventListener("beforeunload", (e) => {
+  if (S.editor && S.editor.isNew && S.view === "editor") { saveDraft(S.editor, true); return; }
   if (S.editor && S.editor.dirty && S.view === "editor") { e.preventDefault(); e.returnValue = ""; }
 });
