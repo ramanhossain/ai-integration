@@ -1879,9 +1879,23 @@
     });
     // ---- verwijzingen naar invoervelden: slepen, klikken, preview
     const isField = (el) => el && el.closest && el.closest("#ndv-form") && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["checkbox", "radio"].includes(el.type))) && el.id !== "s-id";
+    // Velden die een veldpad verwachten (geen tekst-template): daar het kale pad invoegen.
+    const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy"]);
     function insertRef(el, path, atEnd) {
-      const ref = `{{${path}}}`;
       const v = el.value;
+      if (PATH_KEYS.has(el.dataset.k)) {
+        if (el.dataset.t === "lines") {
+          // Eén pad per regel; dubbel niet nog eens toevoegen.
+          const rows = v.split("\n").map((x) => x.trim()).filter(Boolean);
+          if (!rows.includes(path)) el.value = [...rows, path].join("\n");
+        } else el.value = path;
+        el.focus();
+        el.classList.add("got");
+        setTimeout(() => el.classList.remove("got"), 700);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      const ref = `{{${path}}}`;
       let a = el.selectionStart ?? v.length, b = el.selectionEnd ?? v.length;
       if (atEnd) { a = b = v.length; }
       // Een mapping-bronveld (transform) verwacht een pad of een {{template}}; leeg veld → alleen de verwijzing.
