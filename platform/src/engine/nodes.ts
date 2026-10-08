@@ -111,7 +111,7 @@ const nodes: Record<string, NodeHandler> = {
   // Mapping: { doelveld: "bron.pad" } of { doelveld: "tekst met {{veld}}" }. Punten in het doelveld maken geneste objecten.
   transform: async (payload, step, ctx) => {
     const mapping = (step.config?.mapping as Record<string, string>) ?? null;
-    if (!mapping) return payload;
+    if (!mapping || !Object.keys(mapping).length) return payload; // nog niets gemapt: ongewijzigd doorgeven
     let out: Payload = step.config?.keepOthers === false ? {} : { ...payload };
     for (const [rawTarget, src] of Object.entries(mapping)) {
       const target = asPath(rawTarget);
@@ -133,8 +133,10 @@ const nodes: Record<string, NodeHandler> = {
   // Velden toevoegen; waarden mogen {{templates}} bevatten.
   enrich: async (payload, step, ctx) => {
     // keepOthers false = alleen de ingestelde velden (zoals "Include Other Input Fields" uit); standaard: alles behouden.
+    const set = (step.config?.set as Record<string, unknown>) ?? {};
+    if (!Object.keys(set).length) return payload; // nog niets ingesteld: ongewijzigd doorgeven
     let out: Payload = step.config?.keepOthers === false ? {} : { ...payload };
-    for (const [k, v] of Object.entries((step.config?.set as Record<string, unknown>) ?? {})) { const key = asPath(k); if (key) out = setPath(out, key, deepTpl(v, payload, ctx.env)); }
+    for (const [k, v] of Object.entries(set)) { const key = asPath(k); if (key) out = setPath(out, key, deepTpl(v, payload, ctx.env)); }
     return out;
   },
 
@@ -336,11 +338,24 @@ type StepDelegate = (type: string, config: Record<string, unknown>, payload: Pay
 let delegate: StepDelegate | null = null;
 export function setStepDelegate(fn: StepDelegate | null): void { delegate = fn; }
 
+// Instellingen die een veldpad of naam zijn (geen tekst-template): "{{orderId}}" telt als "orderId".
+// Zo werkt een veld dat in de editor is ingesleept in elke stap, ook in oudere definities.
+const PATH_CONFIG = ["field", "target", "bodyField", "inputField", "contentField", "key", "when", "sortBy"];
+function normalizeStep(step: StepDef): StepDef {
+  const c = step.config;
+  if (!c || typeof c !== "object") return step;
+  const n: Record<string, unknown> = { ...c };
+  for (const k of PATH_CONFIG) if (typeof n[k] === "string") n[k] = asPath(n[k]);
+  if (Array.isArray(n.conditions)) n.conditions = (n.conditions as Array<Record<string, unknown>>).map((x) => (x && typeof x.column === "string" ? { ...x, column: asPath(x.column) } : x));
+  if (step.type === "datatable" && n.values && typeof n.values === "object" && !Array.isArray(n.values)) n.values = Object.fromEntries(Object.entries(n.values as Record<string, unknown>).map(([k, v]) => [asPath(k), v]).filter(([k]) => k));
+  return { ...step, config: n };
+}
+
 export function getNode(type: string): NodeHandler {
-  if (delegate && PORTAL_STEPS.has(type)) { const d = delegate; return (payload, step, ctx) => d(type, step.config ?? {}, payload, ctx.env); }
+  if (delegate && PORTAL_STEPS.has(type)) { const d = delegate; return (payload, step, ctx) => d(type, normalizeStep(step).config ?? {}, payload, ctx.env); }
   const handler = nodes[type];
   if (!handler) throw new Error(`Onbekend staptype: ${type}`);
-  return handler;
+  return (payload, step, ctx) => handler(payload, normalizeStep(step), ctx);
 }
 
 // Machine-leesbare catalogus van staptypes (voor API, MCP en externe tooling).
