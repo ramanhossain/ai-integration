@@ -2,7 +2,7 @@
 // details per connector, koppelingen per omgeving (met OAuth-verbinden) en operaties proberen.
 /* global VIEWS, S, api, esc, toast, openModal, closeModal, ENVS, go, who, render, MASK */
 
-const PL = { q: "", cat: "", status: "" };
+const PL = { q: "", cat: "", status: "" }; // status: "" | beschikbaar | gepland | actief
 const initials = (n) => n.replace(/\(.*?\)/g, "").split(/[\s.-]+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || n.slice(0, 2);
 // Logo van de organisatie; lukt dat niet, dan de initialen in de merkkleur.
 const plIcon = (p, size = 40) => `<span class="pl-ic logo" style="--c:${esc(p.color || "#64748b")};width:${size}px;height:${size}px;font-size:${Math.round(size / 2.9)}px" aria-hidden="true" data-initials="${esc(initials(p.name))}"><img src="/api/v1/plugins/${encodeURIComponent(p.id)}/logo" alt="" loading="lazy" decoding="async"></span>`;
@@ -22,31 +22,46 @@ VIEWS.plugins = async (main) => {
   const creds = await api("/api/v1/credentials").catch(() => ({ items: [] }));
   const credCount = (id) => creds.items.filter((c) => c.plugin === id).length;
   const q = PL.q.toLowerCase();
-  const items = r.items.filter((p) => (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)) && (!PL.cat || p.category === PL.cat) && (!PL.status || p.status === PL.status));
+  const items = r.items.filter((p) => (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)) && (!PL.cat || p.category === PL.cat) && (!PL.status || (PL.status === "actief" ? p.active : p.status === PL.status)));
   main.innerHTML = `
-  <div class="head"><div><h1>Plugins</h1><p>Connectors naar externe diensten, te gebruiken als stap <b>Connector</b> in elk proces. <b>${r.stats.available}</b> beschikbaar met ${r.stats.operations} operaties · ${r.stats.planned} gepland · ${r.stats.total} in totaal. Eigen implementatie op de publieke API's van de diensten.</p></div></div>
+  <div class="head"><div><h1>Plugins</h1><p>Connectors naar externe diensten, te gebruiken als stap <b>Connector</b> in elk proces. <b>${r.stats.available}</b> beschikbaar met ${r.stats.operations} operaties · ${r.stats.planned} gepland · ${r.stats.total} in totaal. <b>${r.active}</b> geactiveerd: alleen geactiveerde plugins verschijnen in de proceseditor.</p></div></div>
   <div class="pl-bar">
     <input class="f" id="pl-q" type="search" placeholder="Zoek een connector, bv. Google Sheets, Slack, Salesforce…" value="${esc(PL.q)}" aria-label="Zoeken">
     <select class="f" id="pl-cat" aria-label="Categorie"><option value="">Alle categorieën</option>${r.categories.map((c) => `<option ${c === PL.cat ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
-    <div class="seg ndv-seg" role="tablist" aria-label="Status">${[["", "Alle"], ["beschikbaar", "Beschikbaar"], ["gepland", "Gepland"]].map(([k, l]) => `<button type="button" data-pl-status="${k}" class="${PL.status === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    <div class="seg ndv-seg" role="tablist" aria-label="Status">${[["", "Alle"], ["actief", "Geactiveerd"], ["beschikbaar", "Beschikbaar"], ["gepland", "Gepland"]].map(([k, l]) => `<button type="button" data-pl-status="${k}" class="${PL.status === k ? "on" : ""}">${l}</button>`).join("")}</div>
   </div>
   <div class="pl-count faint">${items.length} connector${items.length === 1 ? "" : "s"}</div>
-  <div class="pl-grid">${items.map((p) => `<a class="pl-card ${p.status === "gepland" ? "planned" : ""}" href="#plugins/${encodeURIComponent(p.id)}">
+  <div class="pl-grid">${items.map((p) => `<div class="pl-card ${p.status === "gepland" ? "planned" : ""} ${p.active ? "active" : ""}">
       ${plIcon(p)}<div class="pl-b"><div class="pl-t"><b>${esc(p.name)}</b>${p.status === "beschikbaar" ? `<span class="chip ok">${p.operations} operatie${p.operations === 1 ? "" : "s"}</span>` : `<span class="chip none">gepland</span>`}</div>
       <div class="pl-d">${esc(p.description)}</div>
-      <div class="pl-m faint">${esc(p.category)}${p.auth ? ` · ${esc(AUTH_LABEL[p.auth] || p.auth)}` : ""}${credCount(p.id) ? ` · <span class="chip info">${credCount(p.id)} koppeling${credCount(p.id) === 1 ? "" : "en"}</span>` : ""}</div></div></a>`).join("") || `<div class="empty">Geen connectors gevonden.</div>`}</div>`;
+      <div class="pl-m faint">${esc(p.category)}${p.auth ? ` · ${esc(AUTH_LABEL[p.auth] || p.auth)}` : ""}${credCount(p.id) ? ` · <span class="chip info">${credCount(p.id)} koppeling${credCount(p.id) === 1 ? "" : "en"}</span>` : ""}</div>
+      <div class="pl-acts">${p.status === "beschikbaar"
+        ? `<button type="button" class="btn sm ${p.active ? "" : "sec"} pl-act" data-pl-toggle="${esc(p.id)}" data-on="${p.active ? 1 : 0}" aria-pressed="${p.active}" title="${p.active ? "Geactiveerd: zichtbaar in de proceseditor. Klik om te deactiveren." : "Activeren: daarna te kiezen in de proceseditor"}" data-ico-done>${ic(p.active ? "check" : "power", 14)}<span>${p.active ? "Geactiveerd" : "Activeren"}</span></button>`
+        : `<span class="faint" style="font-size:.74rem">Nog niet te activeren</span>`}
+        <a class="btn sm sec" href="#plugins/${encodeURIComponent(p.id)}" title="Overzicht en koppelingen" data-ico-done>${ic("eye", 14)}<span>Openen</span></a></div></div></div>`).join("") || `<div class="empty">Geen connectors gevonden.</div>`}</div>`;
   const qEl = document.getElementById("pl-q");
   let t;
   qEl.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { PL.q = qEl.value; render().then(() => { const e = document.getElementById("pl-q"); if (e) { e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }); }, 200); });
   document.getElementById("pl-cat").addEventListener("change", (e) => { PL.cat = e.target.value; render(); });
   main.querySelectorAll("[data-pl-status]").forEach((b) => b.addEventListener("click", () => { PL.status = b.dataset.plStatus; render(); }));
+  main.querySelectorAll("[data-pl-toggle]").forEach((b) => b.addEventListener("click", () => togglePlugin(b.dataset.plToggle, b.dataset.on !== "1")));
 };
+
+// Plugin (de)activeren; de proceseditor toont alleen geactiveerde plugins.
+async function togglePlugin(id, on) {
+  try {
+    await api(`/api/v1/plugins/${encodeURIComponent(id)}/activation`, { body: { active: on } });
+    toast(on ? "Plugin geactiveerd: te kiezen in de proceseditor" : "Plugin gedeactiveerd: niet meer te kiezen bij nieuwe stappen");
+    if (window.loadPluginList) window.loadPluginList();
+    render();
+  } catch (err) { toast(err.message, true); }
+}
 
 async function pluginDetail(main, id) {
   const d = await api(`/api/v1/plugins/${encodeURIComponent(id)}`);
   const head = `<div class="crumbs"><a href="#plugins">Plugins</a> / ${esc(d.name)}</div>
     <div class="pl-head">${plIcon(d, 56)}<div><h1 style="margin:0">${esc(d.name)}</h1><div class="muted">${esc(d.description)}</div>
-      <div class="row" style="margin-top:6px">${d.status === "beschikbaar" ? '<span class="chip ok">beschikbaar</span>' : '<span class="chip none">gepland</span>'}<span class="chip info">${esc(d.category)}</span>${d.website ? `<a href="${esc(d.website)}" target="_blank" rel="noopener">Website ↗</a>` : ""}${d.docs ? `<a href="${esc(d.docs)}" target="_blank" rel="noopener">API-documentatie ↗</a>` : ""}</div></div></div>`;
+      <div class="row" style="margin-top:6px">${d.status === "beschikbaar" ? `<button type="button" class="btn sm ${d.active ? "" : "sec"}" data-pl-toggle="${esc(d.id)}" data-on="${d.active ? 1 : 0}" aria-pressed="${!!d.active}" title="${d.active ? "Zichtbaar in de proceseditor; klik om te deactiveren" : "Activeren: daarna te kiezen in de proceseditor"}" data-ico-done>${ic(d.active ? "check" : "power", 14)}<span>${d.active ? "Geactiveerd" : "Activeren"}</span></button>` : '<span class="chip none">gepland</span>'}<span class="chip info">${esc(d.category)}</span>${d.website ? `<a href="${esc(d.website)}" target="_blank" rel="noopener">Website ↗</a>` : ""}${d.docs ? `<a href="${esc(d.docs)}" target="_blank" rel="noopener">API-documentatie ↗</a>` : ""}</div></div></div>`;
   if (d.status !== "beschikbaar") {
     main.innerHTML = head + `<div class="card"><div class="cb"><p>Deze connector staat in het overzicht maar is nog niet uitgewerkt. Tot dan kun je de dienst aanroepen met de stap <b>HTTP-aanroep</b> en een koppeling (bearer, basic of API-key).</p></div></div>`;
     return;
@@ -75,6 +90,7 @@ async function pluginDetail(main, id) {
       <td><button class="btn sm sec" data-pl-act="try" data-op="${esc(o.id)}">Proberen</button></td></tr>`).join("")).join("")}
   </tbody></table></div></div>`;
   main._plugin = d;
+  main.querySelectorAll("[data-pl-toggle]").forEach((b) => b.addEventListener("click", () => togglePlugin(b.dataset.plToggle, b.dataset.on !== "1")));
 }
 
 // Velden van de koppeling volgens de authenticatie van de plugin.

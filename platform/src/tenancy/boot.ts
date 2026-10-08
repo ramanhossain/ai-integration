@@ -5,6 +5,7 @@ import { agentGroups } from "../runtime/agentGroups";
 import { engine } from "../engine/engine";
 import { registry } from "../domain/registry";
 import { settings } from "../domain/settings";
+import { drafts, pluginActivation } from "../domain/workspace";
 import { approvals } from "../approval/approvalEngine";
 import { credentials } from "../connectors/credentials";
 import { broker } from "../connectors/queue";
@@ -27,6 +28,8 @@ export async function hydrateOrg(org: string): Promise<void> {
     await engine.hydrate();
     await registry.hydrate();
     await settings.hydrate();
+    await drafts.hydrate();
+    await pluginActivation.hydrate();
     await approvals.hydrate();
     await credentials.hydrate();
     await broker.hydrate();

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { pluginActivation } from "../domain/workspace";
 import { randomBytes } from "node:crypto";
 import { plugins } from "../plugins/registry";
 import { CATALOG } from "../plugins/catalog";
@@ -23,7 +24,8 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
       (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)) &&
       (!req.query.category || p.category === req.query.category) &&
       (!req.query.status || p.status === req.query.status));
-    return { stats: plugins.stats(), categories: plugins.categories, items };
+    const active = new Set(pluginActivation.list());
+    return { stats: plugins.stats(), categories: plugins.categories, active: active.size, items: items.map((p) => ({ ...p, active: active.has(p.id) })) };
   });
 
   // Logo van de organisatie achter de plugin (merkicoon of favicon; 404 = initialen tonen).
@@ -39,8 +41,19 @@ export async function registerPluginRoutes(app: FastifyInstance): Promise<void> 
     if (!def && !cat) return reply.code(404).send({ error: "Plugin niet gevonden" });
     const creds = credentials.list().filter((c) => c.type === "plugin" && c.plugin === req.params.id);
     if (!def) return { ...cat, status: "gepland", operations: [], credentials: [] };
-    return { ...def, status: "beschikbaar", hasTrigger: cat?.hasTrigger, credentials: creds, oauthRedirectUri: def.auth.type === "oauth2" ? oauthRedirectUri(req) : undefined };
+    return { ...def, status: "beschikbaar", active: pluginActivation.isActive(def.id), hasTrigger: cat?.hasTrigger, credentials: creds, oauthRedirectUri: def.auth.type === "oauth2" ? oauthRedirectUri(req) : undefined };
   });
+
+  // Plugin activeren: alleen actieve plugins verschijnen in de proceseditor.
+  app.post<{ Params: { id: string }; Body: { active: boolean } }>(
+    "/api/v1/plugins/:id/activation",
+    { schema: { tags: ["plugins"], summary: "Plugin (de)activeren voor de proceseditor", body: { type: "object", required: ["active"], additionalProperties: false, properties: { active: { type: "boolean" } } } } },
+    async (req, reply) => {
+      if (!plugins.get(req.params.id)) return reply.code(404).send({ error: "Plugin niet (beschikbaar) gevonden" });
+      const list = pluginActivation.set(req.params.id, req.body.active, String(req.headers["x-aip-user"] || "gebruiker").slice(0, 80));
+      return { id: req.params.id, active: req.body.active, activeCount: list.length };
+    }
+  );
 
   // Een operatie direct uitvoeren (GUI "Stap uitvoeren", testen, API/MCP).
   app.post<{ Params: { id: string }; Body: { operation: string; credential?: string; params?: Record<string, unknown>; env?: string } }>(

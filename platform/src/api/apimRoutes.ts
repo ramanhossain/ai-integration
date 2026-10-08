@@ -131,7 +131,7 @@ export async function registerApimRoutes(app: FastifyInstance): Promise<void> {
     }
   );
   app.get("/api/v1/apim/endpoints", { schema: { ...T, summary: "Bekende endpoints (voor beleid)" } }, async () =>
-    apim.listApis().flatMap((a) => apim.operations(apim.getApi(a.id)!).map((o) => ({ api: a.title, basePath: a.basePath, method: o.method, path: a.basePath + o.path, operationId: o.operationId }))));
+    apim.listApis().flatMap((a) => apim.operations(apim.getApi(a.id)!).map((o) => ({ apiId: a.id, api: a.title, basePath: a.basePath, key: o.key, method: o.method, opPath: o.path, path: a.basePath + o.path, operationId: o.operationId, summary: o.summary, linkedTo: apim.getApi(a.id)!.links[o.key]?.mode === "process" ? apim.getApi(a.id)!.links[o.key]?.process : undefined }))));
 
   // ---------------------------------------------------------------- beleid
   app.get("/api/v1/apim/policies", { schema: { ...T, summary: "API-beleid" } }, async () => apim.listPolicies());

@@ -55,17 +55,23 @@ VIEWS.apis = async (main) => {
 
 // ---------------------------------------------------------------- API's
 async function amList(main) {
-  const list = await api("/api/v1/apim/apis");
+  const [list, pending] = await Promise.all([api("/api/v1/apim/apis"), api("/api/v1/approvals?status=pending").catch(() => [])]);
+  const waiting = (id, env) => (Array.isArray(pending) ? pending : pending.items || []).find((a) => a.action?.type === "api.deploy" && a.action?.target?.resource === id && a.action?.target?.environment === env);
   main.innerHTML = amHeader("") + `
     <div class="card"><div class="ch"><h3>API's (${list.length})</h3><button class="btn" id="am-new" data-ico-done>${ic("plus")}<span>Nieuwe API</span></button></div><div class="tw">
     ${list.length ? `<table><thead><tr><th>API</th><th>Basispad</th><th>Operaties</th>${ENVS.map((e) => `<th><span class="env ${e.id}">${e.label}</span></th>`).join("")}<th></th></tr></thead><tbody>
       ${list.map((a) => `<tr class="click" data-go="apis/api/${encodeURIComponent(a.id)}"><td><b>${esc(a.title)}</b><div class="faint" style="font-size:.78rem;max-width:360px">${esc(a.description || "")}</div></td><td class="mono">${esc(a.basePath)}</td>
         <td><span class="chip ${a.linked >= a.operations && a.operations ? "ok" : a.linked ? "warn" : "none"}">${a.linked}/${a.operations} gekoppeld</span></td>
-        ${ENVS.map((e) => `<td class="mono">${a.deployed[e.id] ? esc(a.deployed[e.id].version) : '<span class="faint">—</span>'}</td>`).join("")}
-        <td>${iconBtn("right", "Openen", `data-go="apis/api/${encodeURIComponent(a.id)}"`)}</td></tr>`).join("")}</tbody></table>`
+        ${ENVS.map((e) => `<td class="mono">${a.deployed[e.id] ? esc(a.deployed[e.id].version) : '<span class="faint">—</span>'}${e.id !== "dev" && waiting(a.id, e.id) ? ` <a class="chip warn" href="#approvals" data-stop title="Deployverzoek wacht op goedkeuring">wacht</a>` : ""}</td>`).join("")}
+        <td><div class="row icons" style="justify-content:flex-end;flex-wrap:nowrap">${iconBtn("rocket", "Deployen naar TEST, ACC of PROD", `data-am-dep="${esc(a.id)}"`, "sm sec")}${iconBtn("right", "Openen", `data-go="apis/api/${encodeURIComponent(a.id)}"`)}</div></td></tr>`).join("")}</tbody></table>`
       : `<div class="empty">Nog geen API's. Maak er een met een OpenAPI-specificatie (JSON of YAML).</div>`}</div></div>
     <div class="xf-note" style="margin-top:14px">Aanroepen: <code>${esc(location.origin + amPrefix())}/apis/&lt;omgeving&gt;/&lt;basispad&gt;/&lt;operatie&gt;</code>. De specificatie voor afnemers staat op <code>…/&lt;basispad&gt;/openapi.json</code>.</div>`;
   document.getElementById("am-new").addEventListener("click", () => amNewApi());
+  main.querySelectorAll("[data-stop]").forEach((x) => x.addEventListener("click", (e) => e.stopPropagation()));
+  main.querySelectorAll("[data-am-dep]").forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation(); // niet de rij openen
+    try { amDeploy(await api(`/api/v1/apim/apis/${encodeURIComponent(b.dataset.amDep)}`)); } catch (err) { toast(err.message, true); }
+  }));
 }
 
 function amNewApi() {
@@ -229,7 +235,7 @@ function amDeploy(d, versionPref) {
     try {
       const a = await api(`/api/v1/apim/apis/${encodeURIComponent(d.id)}/deploy`, { body: { env, version: document.getElementById("amd-v").value } });
       closeModal();
-      toast(a.status === "executed" ? `Gedeployed naar ${env.toUpperCase()}` : `Deploy naar ${env.toUpperCase()} wacht op ${a.requiredApprovals} goedkeuring(en)`);
+      toast(a.status === "executed" ? `Gedeployed naar ${env.toUpperCase()}` : `Deployverzoek naar ${env.toUpperCase()} aangemaakt; wacht op ${a.requiredApprovals} goedkeuring(en) onder Goedkeuringen`);
       if (a.warnings?.length) setTimeout(() => toast(`Let op: ${a.warnings.join("; ")}`, true), 600);
       render();
     } catch (err) { toast(err.message, true); }

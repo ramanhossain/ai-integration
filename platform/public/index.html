@@ -536,6 +536,9 @@
   .pl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
   .pl-card { display:flex; gap:12px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; color:var(--fg); text-decoration:none; box-shadow:var(--shadow); transition:border-color .12s; }
   .pl-card:hover { border-color:var(--accent); }
+  .pl-card.active { border-color:#1f9d55; box-shadow:0 0 0 1px #1f9d55 inset, var(--shadow); }
+  .pl-acts { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+  .pl-acts .btn { text-decoration:none; }
   .pl-card.planned { opacity:.72; box-shadow:none; background:var(--surface-2); }
   .pl-ic { flex:none; display:inline-grid; place-items:center; border-radius:10px; background:var(--c); color:#fff; font-weight:700; letter-spacing:.02em; }
   .pl-b { min-width:0; flex:1; } .pl-t { display:flex; justify-content:space-between; gap:6px; align-items:center; }

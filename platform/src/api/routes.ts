@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { apim } from "../apim/apim";
+import { drafts } from "../domain/workspace";
 import { approvals } from "../approval/approvalEngine";
 import { registry } from "../domain/registry";
 import { agents } from "../domain/agents";
@@ -23,6 +25,29 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     engine: "built-in",
     environments: ENVIRONMENTS
   }));
+
+  // ---- Concepten (drafts) van nieuwe processen: bewaard bij weggaan zonder opslaan ----
+  const draftBy = (req: { headers: Record<string, unknown> }) => String(req.headers["x-aip-user"] || "gebruiker").slice(0, 80);
+  app.get("/api/v1/drafts", { schema: { tags: ["integrations"], summary: "Concepten van nieuwe processen" } }, async () => drafts.list());
+  app.get<{ Params: { id: string } }>("/api/v1/drafts/:id", { schema: { tags: ["integrations"] } }, async (req, reply) => drafts.get(req.params.id) ?? reply.code(404).send({ error: "Concept niet gevonden" }));
+  app.put<{ Params: { id: string }; Body: { def: Record<string, unknown> } }>(
+    "/api/v1/drafts/:id",
+    { bodyLimit: 3 * 1024 * 1024, schema: { tags: ["integrations"], summary: "Concept bewaren (of bijwerken)", body: { type: "object", required: ["def"], properties: { def: { type: "object", additionalProperties: true } } } } },
+    async (req, reply) => {
+      try { const { def: _d, ...rest } = drafts.save(req.params.id, req.body.def, draftBy(req)); return rest; }
+      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
+    }
+  );
+  // POST = zelfde als PUT (voor fetch keepalive/sendBeacon bij het sluiten van de pagina).
+  app.post<{ Params: { id: string }; Body: { def: Record<string, unknown> } }>(
+    "/api/v1/drafts/:id",
+    { bodyLimit: 3 * 1024 * 1024, schema: { tags: ["integrations"], body: { type: "object", required: ["def"], properties: { def: { type: "object", additionalProperties: true } } } } },
+    async (req, reply) => {
+      try { const { def: _d, ...rest } = drafts.save(req.params.id, req.body.def, draftBy(req)); return rest; }
+      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
+    }
+  );
+  app.delete<{ Params: { id: string } }>("/api/v1/drafts/:id", { schema: { tags: ["integrations"] } }, async (req, reply) => drafts.delete(req.params.id) ? { deleted: true } : reply.code(404).send({ error: "Concept niet gevonden" }));
 
   // ---- Platforminstellingen ----
   app.get("/api/v1/settings", { schema: { tags: ["settings"] } }, async () => settings.get());
@@ -84,12 +109,25 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         body: { $ref: "https://aip.local/schemas/integration.json#" }
       }
     },
-    async (req) => {
+    async (req, reply) => {
       const note = (req.query.note ?? "").trim();
+      // API-trigger met een endpoint uit API-beheer: dat endpoint moet bestaan; na opslaan wordt het gekoppeld.
+      const t = req.body.trigger as { type?: string; apiId?: string; operation?: string } | undefined;
+      const apiDoc = t?.type === "api" && t.apiId ? apim.getApi(t.apiId) : undefined;
+      if (t?.type === "api" && t.apiId) {
+        if (!apiDoc) return reply.code(400).send({ error: "Het gekozen API-endpoint bestaat niet (meer) in API-beheer" });
+        if (!apim.operations(apiDoc).some((o) => o.key === t.operation)) return reply.code(400).send({ error: `Operatie ${t.operation || ""} bestaat niet in API ${apiDoc.title}` });
+      }
       // create=true: nieuw proces — weigeren als de naam al bestaat (niet stil overschrijven).
       const by = req.headers["x-aip-user"] ? String(req.headers["x-aip-user"]).slice(0, 80) : undefined;
       const body = by && !req.body.owner ? { ...req.body, owner: by } : req.body;
-      return registry.upsertIntegration(body, { ...(note ? { note } : {}), create: req.query.create === "true", ...(by ? { by } : {}) });
+      const saved = registry.upsertIntegration(body, { ...(note ? { note } : {}), create: req.query.create === "true", ...(by ? { by } : {}) });
+      if (apiDoc && t?.operation) {
+        const cur = apiDoc.links[t.operation];
+        if (!(cur?.mode === "process" && cur.process === saved.integration))
+          apim.saveApi(apiDoc.id, { links: { ...apiDoc.links, [t.operation]: { mode: "process", process: saved.integration } } }, by ?? "gebruiker", `${t.operation} gekoppeld aan proces ${saved.integration}`);
+      }
+      return saved;
     }
   );
   app.get("/api/v1/integrations", { schema: { tags: ["integrations"] } }, async () => registry.listIntegrations());
