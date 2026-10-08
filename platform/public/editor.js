@@ -58,7 +58,7 @@
   const TYPES = {
     validate: { label: "Validatie", group: "Data", color: "#1f9d55", desc: "Controleer of verplichte velden aanwezig zijn", def: { required: [] } },
     transform: { label: "Transformatie", group: "Data", color: "#2d6cdf", desc: "Velden mappen naar een nieuw formaat", def: { mapping: {} } },
-    enrich: { label: "Velden instellen", group: "Data", color: "#0e8f8a", desc: "Velden toevoegen of overschrijven (met {{templates}})", def: { set: {} } },
+    enrich: { label: "Velden instellen", group: "Data", color: "#0e8f8a", desc: "Velden toevoegen of overschrijven (met {{templates}})", def: { set: {}, keepOthers: false } },
     "duplicate-check": { label: "Duplicaatcheck", group: "Data", color: "#8b5cf6", desc: "Dubbele berichten tegenhouden op een sleutelveld", def: { key: "id" } },
     csv: { label: "CSV", group: "Data", color: "#15803d", desc: "CSV lezen of maken", def: { mode: "parse", field: "content", target: "records", delimiter: ",", header: true } },
     xml: { label: "XML", group: "Data", color: "#b45309", desc: "XML lezen of maken", def: { mode: "parse", field: "content", target: "data" } },
@@ -1464,7 +1464,8 @@
       case "transform":
         return F.rows("mapping", "Mapping", c.mapping, "doelveld", "bron.pad of {{template}}", "←", "Doelveld krijgt de waarde van het bronpad. Punten in het doelveld maken geneste objecten. Velden die je niet mapt blijven behouden.");
       case "enrich":
-        return F.rows("set", "Velden instellen", c.set, "veld", "waarde", "=", "Waarden als JSON waar mogelijk (42, true). " + TPL_HINT);
+        return F.rows("set", "Velden instellen", c.set, "veld", "waarde", "=", "Waarden als JSON waar mogelijk (42, true). " + TPL_HINT) +
+          F.check("keepOthers", "Overige invoervelden behouden", c.keepOthers !== false, "Uit: de output bevat alleen de velden hierboven. Aan: het hele bericht plus deze velden.");
       case "duplicate-check":
         return F.text("key", "Sleutelveld", c.key, "orderId", "Berichten met een sleutel die al voorbijkwam (binnen deze uitvoering) worden tegengehouden.");
       case "csv":
@@ -1883,6 +1884,18 @@
     const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy"]);
     function insertRef(el, path, atEnd) {
       const v = el.value;
+      const kv = el.closest && el.closest(".kvr");
+      if (kv && el === kv.querySelector("input") && kv.closest(".rows[data-k=set], .rows[data-k=mapping]")) {
+        const right = kv.querySelectorAll("input")[1];
+        const isSet = !!kv.closest(".rows[data-k=set]");
+        el.value = isSet ? path.replace(/\[\d+\]/g, "").split(".").pop() : path.replace(/\[\d+\]/g, "");
+        if (right && !right.value) right.value = isSet ? `{{${path}}}` : path;
+        el.classList.add("got");
+        setTimeout(() => el.classList.remove("got"), 700);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        if (right) showPreview(right);
+        return;
+      }
       if (PATH_KEYS.has(el.dataset.k)) {
         if (el.dataset.t === "lines") {
           // Eén pad per regel; dubbel niet nog eens toevoegen.
