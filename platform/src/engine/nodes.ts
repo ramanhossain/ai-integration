@@ -113,7 +113,9 @@ const nodes: Record<string, NodeHandler> = {
     const mapping = (step.config?.mapping as Record<string, string>) ?? null;
     if (!mapping) return payload;
     let out: Payload = step.config?.keepOthers === false ? {} : { ...payload };
-    for (const [target, src] of Object.entries(mapping)) {
+    for (const [rawTarget, src] of Object.entries(mapping)) {
+      const target = asPath(rawTarget);
+      if (!target) continue;
       const value = typeof src === "string" && src.includes("{{") ? deepTpl(src, payload, ctx.env) : getPath(payload, String(src));
       out = setPath(out, target, value);
     }
@@ -130,8 +132,9 @@ const nodes: Record<string, NodeHandler> = {
 
   // Velden toevoegen; waarden mogen {{templates}} bevatten.
   enrich: async (payload, step, ctx) => {
-    let out = { ...payload };
-    for (const [k, v] of Object.entries((step.config?.set as Record<string, unknown>) ?? {})) out = setPath(out, k, deepTpl(v, payload, ctx.env));
+    // keepOthers false = alleen de ingestelde velden (zoals "Include Other Input Fields" uit); standaard: alles behouden.
+    let out: Payload = step.config?.keepOthers === false ? {} : { ...payload };
+    for (const [k, v] of Object.entries((step.config?.set as Record<string, unknown>) ?? {})) { const key = asPath(k); if (key) out = setPath(out, key, deepTpl(v, payload, ctx.env)); }
     return out;
   },
 
@@ -345,7 +348,7 @@ export const STEP_CATALOG = [
   { type: "validate", group: "Data", label: "Validatie", description: "Controleer verplichte velden", config: { required: "string[] — veldpaden" } },
   { type: "transform", group: "Data", label: "Transformatie", description: "Velden mappen", config: { mapping: "{ doelveld: 'bron.pad' | 'tekst {{veld}}' }", keepOthers: "boolean (default true)" } },
   { type: "duplicate-check", group: "Data", label: "Duplicaatcheck", description: "Dubbele berichten tegenhouden", config: { key: "veldpad" } },
-  { type: "enrich", group: "Data", label: "Velden instellen", description: "Velden toevoegen/overschrijven", config: { set: "{ veld: waarde | '{{template}}' }" } },
+  { type: "enrich", group: "Data", label: "Velden instellen", description: "Velden toevoegen/overschrijven", config: { set: "{ veld: waarde | '{{template}}' }", keepOthers: "boolean (default true; false = alleen de ingestelde velden)" } },
   { type: "csv", group: "Data", label: "CSV", description: "CSV lezen of maken", config: { mode: "parse | generate", field: "bronveld", target: "doelveld", delimiter: "string", header: "boolean" } },
   { type: "xml", group: "Data", label: "XML", description: "XML lezen of maken", config: { mode: "parse | build", field: "bronveld", target: "doelveld", root: "rootelement (build)" } },
   { type: "call", group: "Kern", label: "HTTP-aanroep", description: "REST/HTTP-API aanroepen", retryable: true, config: { method: "GET|POST|PUT|PATCH|DELETE (default GET; POST als body is ingesteld)", url: "template; leeg = gesimuleerd", credential: "http-basic | http-bearer | api-key", headers: "object", query: "object", body: "payload | field | custom | none", target: "doelveld (default _call)" } },
