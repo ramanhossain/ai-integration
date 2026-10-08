@@ -96,10 +96,13 @@ function compare(v: unknown, op: string, expected: unknown): boolean {
   }
 }
 
+// Veldpad uit de configuratie; "{{orderId}}" (ingesleept in de editor) betekent ook gewoon "orderId".
+const asPath = (s: unknown): string => String(s ?? "").trim().replace(/^\{\{\s*([^{}]+?)\s*\}\}$/, "$1");
+
 const nodes: Record<string, NodeHandler> = {
   // ---------- Data ----------
   validate: async (payload, step) => {
-    const required = (step.config?.required as string[]) ?? [];
+    const required = ((step.config?.required as string[]) ?? []).map(asPath).filter(Boolean);
     const missing = required.filter((f) => { const v = getPath(payload, f); return v === undefined || v === null || v === ""; });
     if (missing.length) throw new Error(`Validatie faalde: ontbrekende velden ${missing.join(", ")}`);
     return payload;
@@ -118,7 +121,7 @@ const nodes: Record<string, NodeHandler> = {
   },
 
   "duplicate-check": async (payload, step, ctx) => {
-    const key = String(step.config?.key ?? "id");
+    const key = asPath(step.config?.key ?? "id") || "id";
     const value = String(getPath(payload, key) ?? "");
     if (value && ctx.seen.has(value)) throw new Error(`Duplicaat op ${key}=${value}`);
     if (value) ctx.seen.add(value);
@@ -315,7 +318,7 @@ const nodes: Record<string, NodeHandler> = {
   // Exclusieve gateway: config.when (veld) + optioneel op/value. Zet _branch.taken.
   branch: async (payload, step) => {
     const c = step.config ?? {};
-    const when = c.when as string | undefined;
+    const when = c.when === undefined ? undefined : asPath(c.when);
     const taken = when ? compare(getPath(payload, when), String(c.op || "truthy"), c.value) : true;
     return { ...payload, _branch: { taken } };
   },
