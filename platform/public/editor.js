@@ -57,7 +57,7 @@
   // shape: task (taak), gateway (ruit), end (eindevent).
   const TYPES = {
     validate: { label: "Validatie", group: "Data", color: "#1f9d55", desc: "Controleer of verplichte velden aanwezig zijn", def: { required: [] } },
-    transform: { label: "Transformatie", group: "Data", color: "#2d6cdf", desc: "Velden mappen naar een nieuw formaat", def: { mapping: {} } },
+    transform: { label: "Transformatie", group: "Data", color: "#2d6cdf", desc: "Velden mappen naar een nieuw formaat", def: { mapping: {}, keepOthers: false } },
     enrich: { label: "Velden instellen", group: "Data", color: "#0e8f8a", desc: "Velden toevoegen of overschrijven (met {{templates}})", def: { set: {}, keepOthers: false } },
     "duplicate-check": { label: "Duplicaatcheck", group: "Data", color: "#8b5cf6", desc: "Dubbele berichten tegenhouden op een sleutelveld", def: { key: "id" } },
     csv: { label: "CSV", group: "Data", color: "#15803d", desc: "CSV lezen of maken", def: { mode: "parse", field: "content", target: "records", delimiter: ",", header: true } },
@@ -1462,7 +1462,8 @@
       case "validate":
         return F.lines("required", "Verplichte velden", c.required, "orderId\ncustomer.email", "Eén veld per regel; punten voor geneste velden. Ontbreekt of leeg → de stap faalt.");
       case "transform":
-        return F.rows("mapping", "Mapping", c.mapping, "doelveld", "bron.pad of {{template}}", "←", "Doelveld krijgt de waarde van het bronpad. Punten in het doelveld maken geneste objecten. Velden die je niet mapt blijven behouden.");
+        return F.rows("mapping", "Mapping", c.mapping, "doelveld", "bron.pad of {{template}}", "←", "Doelveld krijgt de waarde van het bronpad. Punten in het doelveld maken geneste objecten.") +
+          F.check("keepOthers", "Niet-gemapte velden behouden", c.keepOthers !== false, "Uit: de output bevat alleen de gemapte velden. Aan: het hele bericht plus de mapping.");
       case "enrich":
         return F.rows("set", "Velden instellen", c.set, "veld", "waarde", "=", "Waarden als JSON waar mogelijk (42, true). " + TPL_HINT) +
           F.check("keepOthers", "Overige invoervelden behouden", c.keepOthers !== false, "Uit: de output bevat alleen de velden hierboven. Aan: het hele bericht plus deze velden.");
@@ -1837,7 +1838,7 @@
         if (lastField && lastField.isConnected) insertRef(lastField, chip.dataset.path);
         else {
           const tip = $n("#ndv-in .ndv-tip");
-          if (tip) { tip.textContent = `Klik eerst in een invulveld in het midden; daarna voegt een klik op een veld {{${chip.dataset.path}}} in.`; tip.classList.add("warn"); }
+          if (tip) { tip.textContent = `Klik eerst in een invulveld in het midden; daarna voegt een klik op een veld {{${chip.dataset.path}}} in (of de veldnaam, in velden die een veldnaam vragen).`; tip.classList.add("warn"); }
         }
         return;
       }
@@ -1881,13 +1882,21 @@
     // ---- verwijzingen naar invoervelden: slepen, klikken, preview
     const isField = (el) => el && el.closest && el.closest("#ndv-form") && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["checkbox", "radio"].includes(el.type))) && el.id !== "s-id";
     // Velden die een veldpad verwachten (geen tekst-template): daar het kale pad invoegen.
-    const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy"]);
+    const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy", "target"]);
     function insertRef(el, path, atEnd) {
       const v = el.value;
       const kv = el.closest && el.closest(".kvr");
-      if (kv && el === kv.querySelector("input") && kv.closest(".rows[data-k=set], .rows[data-k=mapping]")) {
+      // Kolom van een voorwaarde (datatabel): kale kolomnaam.
+      const cd = el.closest && el.closest(".cdr");
+      if (cd && el === cd.querySelector("input")) {
+        el.value = path.replace(/\[\d+\]/g, "").split(".").pop();
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      if (kv && el === kv.querySelector("input")) {
+        // Naamkolom: naam = (laatste deel van) het pad, waarde = verwijzing naar het veld.
         const right = kv.querySelectorAll("input")[1];
-        const isSet = !!kv.closest(".rows[data-k=set]");
+        const isSet = !kv.closest(".rows[data-k=mapping]");
         el.value = isSet ? path.replace(/\[\d+\]/g, "").split(".").pop() : path.replace(/\[\d+\]/g, "");
         if (right && !right.value) right.value = isSet ? `{{${path}}}` : path;
         el.classList.add("got");
