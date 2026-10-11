@@ -364,22 +364,32 @@ const NEW_DEF = () => ({
   approval: { productionDeployment: "required" }
 });
 const verLabel = (r) => (r.test ? "test" : `v${r.version ?? "?"}`);
+// Testdata staat per proces in deze browser. Nieuw proces/concept: per concept-id (niet gedeeld).
+// Een lege waarde is een bewuste keuze en blijft leeg; alleen "nooit ingesteld" geeft de voorbeelddata.
+const testKey = (E) => (E.isNew && E.draftId ? `aip.test.~${E.draftId}` : `aip.test.${E.name}`);
+function loadTestInput(E) { const t = localGet(testKey(E)); return t !== null ? t : DEFAULT_TEST_INPUT; }
+function storeTestInput(E, v) { E.testInput = v; localSet(testKey(E), v); if (E === S.editor) autosaveDraft(); }
 // Concepten: een nieuw proces dat je verlaat zonder op te slaan, wordt op de server bewaard
 // en staat op de pagina Processen. Niets gewijzigd = geen concept.
 const newDraftId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
-function saveDraft(E, keepalive = false) {
+function saveDraft(E, keepalive = false, quiet = false) {
   if (!E || !E.isNew || !E.def) return;
   const def = cleanDef(E.def);
   const text = JSON.stringify(def);
-  if (E.initial !== undefined && JSON.stringify(E.def) === E.initial) return; // niets gewijzigd
+  if (E.initial !== undefined && JSON.stringify(E.def) === E.initial && E.testInput === E.initialTest) return; // niets gewijzigd
   if (!E.draftId) E.draftId = newDraftId();
   E.initial = JSON.stringify(E.def);
+  E.initialTest = E.testInput;
+  if (E.testInput !== undefined) localSet(`aip.test.~${E.draftId}`, E.testInput);
+  E.draftSaved = true;
   const url = `/api/v1/drafts/${E.draftId}`, body = `{"def":${text}}`;
   if (keepalive) { try { fetch(url, { method: "POST", keepalive: body.length < 60000, headers: { "content-type": "application/json", "x-aip-user": who() }, body }); } catch {} return; }
+  E.draftSaved = false;
   S.pendingDraft = fetch(url, { method: "PUT", headers: { "content-type": "application/json", "x-aip-user": who() }, body })
-    .then((r) => { if (r.ok) toast(`"${def.integration || "Naamloos"}" bewaard als concept (zie Processen)`); else toast("Concept bewaren mislukt", true); })
+    .then((r) => { if (r.ok) { E.draftSaved = true; if (!quiet) toast(`"${def.integration || "Naamloos"}" bewaard als concept (zie Processen)`); } else toast("Concept bewaren mislukt", true); })
     .catch(() => toast("Concept bewaren mislukt", true))
     .finally(() => { S.pendingDraft = null; });
+  return S.pendingDraft;
 }
 function destroyCanvas() {
   if (S.canvas) { S.canvas.destroy(); S.canvas = null; }
@@ -403,8 +413,12 @@ VIEWS.editor = async (main) => {
     }
     else if (name.startsWith("~")) {
       // Concept (draft): verder bewerken; opslaan maakt er een echt proces van.
-      const dr = await api(`/api/v1/drafts/${encodeURIComponent(name.slice(1))}`);
-      E = { name, isNew: true, def: JSON.parse(JSON.stringify(dr.def)), dirty: true, state: null, draftId: dr.id, triggerAsked: true };
+      let dr;
+      for (let i = 0; ; i++) {
+        try { dr = await api(`/api/v1/drafts/${encodeURIComponent(name.slice(1))}`); break; }
+        catch (err) { if (i >= 4) throw err; await new Promise((r) => setTimeout(r, 400)); }
+      }
+      E = { name, isNew: true, def: JSON.parse(JSON.stringify(dr.def)), dirty: true, state: null, draftId: dr.id, draftSaved: true, triggerAsked: true };
     }
     else {
       const [def, state] = await Promise.all([
@@ -417,7 +431,8 @@ VIEWS.editor = async (main) => {
     if (E.isNew) E.initial = JSON.stringify(E.def);
     E.tab = "editor";
     E.lastRun = null;
-    E.testInput = localGet(`aip.test.${name}`) || DEFAULT_TEST_INPUT;
+    E.testInput = loadTestInput(E);
+    E.initialTest = E.testInput;
     S.editor = E;
   }
   renderEditor(main);
@@ -735,6 +750,26 @@ function markDirty() {
   if (d) d.classList.remove("hide");
   const n = $("#ed-name");
   if (n) n.textContent = S.editor.def.integration;
+  autosaveDraft();
+}
+
+// Nieuw proces: na een wijziging automatisch als concept bewaren; de URL wijst daarna naar
+// het concept, zodat verversen of later terugkomen hetzelfde werk (en dezelfde testdata) opent.
+let draftTimer = null;
+function autosaveDraft() {
+  const E = S.editor;
+  if (!E || !E.isNew) return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    if (S.editor !== E || S.view !== "editor") return;
+    const p = saveDraft(E, false, true);
+    if (p) p.then(() => {
+      if (S.editor !== E || !E.draftSaved || E.name.startsWith("~")) return;
+      E.name = `~${E.draftId}`;
+      S.param = E.name;
+      try { history.replaceState(null, "", `#editor/${E.name}`); } catch {}
+    });
+  }, 1200);
 }
 
 async function loadEditorCtx(current) {
@@ -762,10 +797,12 @@ async function openNode(id) {
     def: E.def,
     id,
     run: E.lastRun,
+    // Losse "Stap uitvoeren"-resultaten: de volgende stap gebruikt die output als invoer.
+    stepRuns: (E.stepRuns ||= {}),
     ctx,
     api,
     getTestInput: () => E.testInput,
-    setTestInput: (v) => { E.testInput = v; localSet(`aip.test.${E.name}`, v); },
+    setTestInput: (v) => storeTestInput(E, v),
     onChange: () => { markDirty(); if (S.canvas) S.canvas.redraw(); refreshTriggerBtn(); },
     pushHistory: (snap) => { if (S.canvas) S.canvas.pushHistory(snap); },
     onDelete: () => { if (S.canvas) S.canvas.deleteNode(id); },
@@ -804,6 +841,7 @@ async function executeEditor() {
   if (problems.length) return toast(problems[0], true);
   const run = await api("/api/v1/engine/test-run", { body: { definition: cleanDef(E.def), input } });
   E.lastRun = run;
+  E.stepRuns = {}; // volledige uitvoering is nu de bron; losse stap-resultaten vervallen
   if (S.canvas) S.canvas.setRun(run);
   updateRunUI();
   toast(run.status === "success" ? `Proces geslaagd in ${run.durationMs} ms` : `Proces gefaald: ${run.error}`, run.status !== "success");
@@ -819,8 +857,7 @@ function testDataModal() {
   $("#td-save").addEventListener("click", () => {
     const v = $("#td").value;
     try { JSON.parse(v || "{}"); } catch { return toast("Geen geldige JSON", true); }
-    E.testInput = v;
-    localSet(`aip.test.${E.name}`, v);
+    storeTestInput(E, v);
     closeModal();
     toast("Testdata opgeslagen");
   });
@@ -1013,7 +1050,7 @@ async function saveEditor() {
   if (note) qs.set("note", note);
   if (E.isNew) qs.set("create", "true");
   const saved = await api(`/api/v1/integrations${qs.toString() ? `?${qs}` : ""}`, { body: { ...cleanDef(E.def), owner: who() } });
-  if (E.isNew) localSet(`aip.test.${saved.integration}`, E.testInput);
+  if (E.isNew) { localSet(`aip.test.${saved.integration}`, E.testInput ?? ""); if (E.draftId) try { localStorage.removeItem(`aip.test.~${E.draftId}`); } catch {} }
   if (E.draftId) api(`/api/v1/drafts/${E.draftId}`, { method: "DELETE" }).catch(() => {});
   toast(`Opgeslagen als v${saved.version} op DEV`);
   S.editor = null;
@@ -1180,7 +1217,7 @@ function importModal() {
       closeModal();
       const def = r.definition;
       PC.normalize(def);
-      const NE = { name: "new", isNew: true, def, dirty: true, state: null, tab: "editor", lastRun: null, triggerAsked: true,
+      const NE = { name: "new", isNew: true, draftId: newDraftId(), def, dirty: true, state: null, tab: "editor", lastRun: null, triggerAsked: true,
         testInput: bundle.testInput !== undefined ? JSON.stringify(bundle.testInput, null, 2) : DEFAULT_TEST_INPUT };
       S.editor = NE;
       toast(`${def.integration} geopend in de editor — nog niet opgeslagen${r.savedSubprocesses.length ? `; ${r.savedSubprocesses.length} subproces(sen) opgeslagen op DEV` : ""}`);
@@ -1518,6 +1555,12 @@ setInterval(refreshStatus, 15000);
 
 // Waarschuwen bij sluiten/verversen met niet-opgeslagen wijzigingen in de editor.
 window.addEventListener("beforeunload", (e) => {
-  if (S.editor && S.editor.isNew && S.view === "editor") { saveDraft(S.editor, true); return; }
+  if (S.editor && S.editor.isNew && S.view === "editor") {
+    saveDraft(S.editor, true);
+    // Na verversen hetzelfde concept openen (de URL wijst dan naar het concept).
+    if (S.editor.draftSaved && location.hash === "#editor/new")
+      try { history.replaceState(null, "", `#editor/~${S.editor.draftId}`); } catch {}
+    return;
+  }
   if (S.editor && S.editor.dirty && S.view === "editor") { e.preventDefault(); e.returnValue = ""; }
 });
