@@ -1672,7 +1672,9 @@
     if (!isStart && !step) return;
     const t = isStart ? { label: (TRIGGERS[def.trigger?.type] || { label: "Trigger" }).label, color: "#1f9d55" } : TYPES[step.type] || TYPES.custom;
     const lastStep = o.run && o.run.steps ? o.run.steps.filter((s) => s.id === o.id).pop() : null;
-    let output = lastStep ? (lastStep.status === "ok" ? { ok: true, output: lastStep.output, port: lastStep.port, ms: lastStep.ms, fromRun: true } : { ok: false, error: lastStep.error, fromRun: true }) : null;
+    const stepRuns = o.stepRuns || {};
+    let output = stepRuns[o.id] ? { ...stepRuns[o.id].result }
+      : lastStep ? (lastStep.status === "ok" ? { ok: true, output: lastStep.output, port: lastStep.port, ms: lastStep.ms, fromRun: true } : { ok: false, error: lastStep.error, fromRun: true }) : null;
     const snapStr = JSON.stringify(def);
     let pushed = false;
     const changedNd = () => { if (!pushed) { o.pushHistory(snapStr); pushed = true; } o.onChange(); };
@@ -1714,8 +1716,25 @@
     const $n = (s) => overlay.querySelector(s);
     let tab = "p";
 
+    // Invoer zoals bij uitvoeren: de output van de vorige stap (eerst een losse "Stap uitvoeren",
+    // anders de laatste procesuitvoering); na het startevent de testdata.
+    function inputSource() {
+      if (isStart) return null;
+      const runOut = (id) => { const s = o.run && o.run.steps ? o.run.steps.filter((x) => x.id === id).pop() : null; return s && s.status === "ok" ? s.output : undefined; };
+      for (const c of (def.connections || []).filter((x) => x.to === o.id)) {
+        if (c.from === "start") continue;
+        const sr = stepRuns[c.from];
+        const prev = def.steps.find((x) => x.id === c.from);
+        if (sr && sr.result.ok && (!c.port || !sr.result.port || sr.result.port === c.port)) return { data: sr.result.output, label: `Uit de vorige stap: ${prev ? prev.name || prev.id : c.from}` };
+        const ro = runOut(c.from);
+        if (ro !== undefined) return { data: ro, label: `Uit de laatste uitvoering (${prev ? prev.name || prev.id : c.from})` };
+      }
+      if (lastStep && lastStep.input !== undefined) return { data: lastStep.input, label: "Uit de laatste uitvoering" };
+      return null;
+    }
     function inputData() {
-      if (lastStep && lastStep.input !== undefined) return lastStep.input;
+      const src = inputSource();
+      if (src) return src.data;
       try { return JSON.parse(o.getTestInput() || "{}"); } catch { return {}; }
     }
     function renderIn() {
@@ -1724,11 +1743,11 @@
           <p class="muted" style="font-size:.8rem">Triggers zijn actief op elke omgeving waar een versie van dit proces gedeployed is. Een overzicht staat onder Beheer → Actieve triggers.</p>`;
         return;
       }
-      const fromRun = lastStep && lastStep.input !== undefined;
+      const src = inputSource();
       const data = inputData();
       const notReached = o.run && !lastStep;
       $n("#ndv-in-n").textContent = `· ${itemCount(data)}`;
-      $n("#ndv-in").innerHTML = `<div class="ndv-src">${fromRun ? "Uit de laatste uitvoering" : notReached ? "Niet bereikt in de laatste uitvoering — testdata van het proces" : "Geen uitvoering — testdata van het proces"}
+      $n("#ndv-in").innerHTML = `<div class="ndv-src">${src ? esc(src.label) : notReached ? "Niet bereikt in de laatste uitvoering — testdata van het proces" : "Geen uitvoering — testdata van het proces"}
           ${o.onRunPrevious ? `<button class="lnk" id="ndv-prev" type="button">▶ Vorige stappen uitvoeren</button>` : ""}</div>
         <div class="ndv-tip">Sleep een veld naar een invulveld in het midden, of klik in een invulveld en daarna op een veld.</div>
         ${dataViewHtml(views.in, data)}`;
@@ -1890,6 +1909,7 @@
           const r = await o.api("/api/v1/engine/execute-step", { body: { type: step.type, config: step.config || {}, input: inputData() } });
           output = r.ok ? { ok: true, output: r.output, port: r.port, ms: r.ms } : { ok: false, error: r.error };
         } catch (err) { output = { ok: false, error: err.message }; }
+        stepRuns[o.id] = { result: output, at: Date.now() }; // onthouden voor de volgende stap
         btn.disabled = false;
         renderOut();
       }
