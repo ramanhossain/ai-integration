@@ -21,7 +21,7 @@ const PUBLIC = [
   /^\/$/, /^\/app(\/|$)/, /^\/docs(\/|$)/, /^\/openapi\.json$/, /^\/health$/, /^\/favicon/,
   /^\/api\/v1\/auth\/(status|setup|signup|login|logout|forgot|reset)(\/|$)/,
   /^\/api\/v1\/schemas\//, /^\/api\/v1\/oauth\/callback/, /^\/agent\//,
-  /^\/hooks\//, /^\/apis\//
+  /^\/hooks\//, /^\/apis\//, /^\/ebms\//
 ];
 
 export function readCookie(req: FastifyRequest, name: string): string | undefined {
@@ -100,7 +100,7 @@ export function registerAuth(app: FastifyInstance): void {
   app.addHook("onRequest", (req, reply, done) => {
     const url = req.url.split("?")[0];
     // Publieke webhooks/API-endpoints van een organisatie: /o/<org>/hooks|apis/...
-    const m = url.match(/^\/o\/([a-z0-9-]{2,40})\/(hooks|apis)\//);
+    const m = url.match(/^\/o\/([a-z0-9-]{2,40})\/(hooks|apis|ebms)\//);
     if (m) {
       const o = accounts.getOrg(m[1]);
       if (!o || o.disabled) { reply.code(404).send({ error: "Onbekende organisatie" }); return; }
@@ -108,7 +108,7 @@ export function registerAuth(app: FastifyInstance): void {
       return;
     }
     // Webhooks/API-endpoints zonder /o/-prefix horen bij de hoofdorganisatie (ook met een cookie).
-    if (/^\/(hooks|apis)\//.test(url)) { runInOrg(DEFAULT_ORG, done); return; }
+    if (/^\/(hooks|apis|ebms)\//.test(url)) { runInOrg(DEFAULT_ORG, done); return; }
     if (!AUTH_ENABLED) { req.auth = { org: DEFAULT_ORG, identity: String(req.headers["x-aip-user"] || "gebruiker"), superAdmin: true, admin: true }; runInOrg(DEFAULT_ORG, done); return; }
 
     // Agent-API: de verbindingssleutel bepaalt de organisatie.

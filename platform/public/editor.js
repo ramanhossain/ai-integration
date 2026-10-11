@@ -90,6 +90,8 @@
     manual: { label: "Handmatig", desc: "Starten vanuit de GUI, API of MCP" },
     webhook: { label: "Webhook / HTTP", desc: "HTTP-endpoint per omgeving (ontvangt berichten)" },
     api: { label: "API-endpoint", desc: "REST-endpoint met padparameters en OpenAPI-specificatie" },
+    as4: { label: "AS4 Gateway ontvangst", desc: "Start bij een duurzaam ontvangen AS4-bericht uit de AS4 Gateway" },
+    ebms: { label: "ebXML / ebMS ontvangst", desc: "Start bij een duurzaam ontvangen bericht van Digipoort, Berichtenbox, Lopende Zaken of Digilevering" },
     schedule: { label: "Schema (cron)", desc: "Periodiek starten" },
     queue: { label: "Queue", desc: "Start per bericht op een queue" },
     file: { label: "Map (lokaal)", desc: "Nieuwe bestanden in een map" },
@@ -99,6 +101,8 @@
     t = t || {};
     if (t.type === "webhook") return "/" + String(t.path || name || "").replace(/^\//, "");
     if (t.type === "api") return `${String(t.method || "GET").toUpperCase()} /${String(t.path || name || "").replace(/^\//, "")}`;
+    if (t.type === "as4") return `AS4: ${t.credential || "kies een koppeling"}`;
+    if (t.type === "ebms") return `ebMS: ${t.credential || "kies een koppeling"}`;
     if (t.type === "schedule") return t.everySeconds ? `elke ${t.everySeconds}s` : t.cron || "";
     if (t.type === "queue") return t.queue || "";
     if (t.type === "file" || t.type === "ftp") return t.dir || "";
@@ -1599,6 +1603,17 @@
         hintHtml("Antwoord: het bericht aan het eind van het proces (zonder interne velden), of een eigen <code>_response: { status, body }</code>.") +
         `<label>Endpoint per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map((e) => `<div><span class="env ${e}">${e}</span> <code>${method} ${esc(location.origin)}/apis/${e}/${esc(path)}</code> · <a href="/apis/${e}/openapi.json" target="_blank" rel="noopener">OpenAPI</a></div>`).join("")}</div>` +
         hintHtml("Actief op elke omgeving waar deze versie gedeployed is.");
+    } else if (t.type === "as4") {
+      html += F.cred("AS4-koppeling", t.credential, ["plugin"], ctx, "Kies een geactiveerde AS4 Gateway-koppeling.") +
+        F.text("service", "Servicefilter (optioneel)", t.service, "P-Mode-service") +
+        F.text("action", "Actiefilter (optioneel)", t.action, "P-Mode-actie") +
+        hintHtml("AS4 Gateway ontvangt het AS4-bericht en levert het aan de koppelingsmap. Dit proces ontvangt <code>payload.dataBase64</code>, voor XML ook <code>payload.xml</code>, <code>attachments</code> en <code>_as4</code>. Koppel precies één proces en één agentgroep. Zie de AS4-plugin voor gateway-instellingen en mappen.");
+    } else if (t.type === "ebms") {
+      html += F.cred("ebMS-koppeling", t.credential, ["plugin"], ctx, "Kies een geactiveerde ebMS-, Digipoort-, Berichtenbox-, Lopende Zaken- of Digilevering-koppeling.") +
+        F.text("service", "Servicefilter (optioneel)", t.service, "CPA-service") +
+        F.text("action", "Actiefilter (optioneel)", t.action, "CPA-actie") +
+        hintHtml("Het proces ontvangt <code>payload.xml</code>, <code>attachments</code> en <code>_ebms.messageId</code>. Koppel per service/actie één proces; duplicaten starten geen tweede uitvoering.") +
+        `<label>Ontvangendpoint per omgeving</label><div class="urls">${["dev", "test", "acc", "prod"].map(e => `<div><span class="env ${e}">${e}</span> <code>${esc(location.origin)}${esc((window.AIP_ME && window.AIP_ME.org && window.AIP_ME.org.pathPrefix) || "")}/ebms/${e}/${esc(encodeURIComponent(t.credential || "koppeling"))}</code></div>`).join("")}</div>`;
     } else if (t.type === "schedule") {
       html += F.select("cron", "Snelkeuze", t.cron || "", [["", "— eigen expressie —"], ["*/5 * * * *", "elke 5 minuten"], ["0 * * * *", "elk uur"], ["0 7 * * *", "dagelijks 07:00"], ["0 9 * * 1-5", "werkdagen 09:00"], ["0 0 1 * *", "maandelijks"]], "", true) +
         F.text("cron", "Cron-expressie", t.cron, "*/5 * * * *", "minuut uur dag maand weekdag") + F.num("everySeconds", "Of: elke N seconden", t.everySeconds, "Heeft voorrang op cron als het ingevuld is (minimaal 5).");

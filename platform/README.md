@@ -146,6 +146,8 @@ Pagina **Plugins** (Ontwikkelen → Plugins) toont alle connectors met het logo 
 - Sjablonen kennen `{{$uuid}}` en `{{$now}}`; operaties kunnen eigen headers hebben (`headers`) en parameters die alleen in sjablonen gebruikt worden (`in: "template"`).
 - Koppelingen: type `plugin`, waarden per omgeving (versleuteld). Bij OAuth2 per omgeving op **Verbinden** klikken; zet de getoonde redirect-URI in de OAuth-app (`AIP_PUBLIC_URL` bepaalt de host).
 - In een proces: staptype **Connector** (typ de naam van de dienst in de stapkiezer), kies operatie + koppeling; parameters mogen `{{veld}}` bevatten.
+- AS4 Gateway: duurzame gateway-koppeling, activatie per omgeving, receipts, binaire bijlagen en procesontvangst. Zie [AS4 configuratie en gebruik](docs/as4.md).
+- ebMS 2.0, Digipoort, Berichtenbox, Lopende Zaken en Digilevering: activering per omgeving, inbox/outbox, signing/encryptie en ontvangst via procestrigger. Zie [configuratie en gebruik](docs/ebms.md).
 - **Proberen** voert een operatie direct uit (niet op PROD). API: `GET /api/v1/plugins`, `GET /api/v1/plugins/:id`, `POST /api/v1/plugins/:id/execute`, `POST /api/v1/plugins/:id/test`. MCP: `list_plugins`, `get_plugin`.
 - Tests: `npm run test:plugins` (mockserver, ondertekeningen tegen de specificatie, RSS/Atom, Odoo, elke driver laadt en meldt een verbindingsfout netjes, en alle HTTP-operaties bouwen een geldige aanvraag).
 

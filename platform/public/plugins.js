@@ -91,6 +91,24 @@ async function pluginDetail(main, id) {
   </tbody></table></div></div>`;
   main._plugin = d;
   main.querySelectorAll("[data-pl-toggle]").forEach((b) => b.addEventListener("click", () => togglePlugin(b.dataset.plToggle, b.dataset.on !== "1")));
+  if (d.id === "as4") {
+    const [connections, messages] = await Promise.all([api(`/api/v1/as4/${S.env}/connections`), api(`/api/v1/as4/${S.env}/messages`)]);
+    main.insertAdjacentHTML("beforeend", `<div class="card" style="margin-top:14px"><div class="ch"><h3>AS4 op ${esc(S.env.toUpperCase())}</h3><button class="btn sm sec" data-pl-act="as4-refresh">Vernieuwen</button></div><div class="cb">
+      <p class="muted">AS4 Gateway verzorgt AS4-transport en beveiliging. Configureer de gateway met het P-Mode en de onderstaande mappen. Kies in het proces de trigger <b>AS4 Gateway ontvangst</b>.</p>
+      ${connections.map(c => `<div style="margin:12px 0"><div class="row"><b>${esc(c.credential)}</b><span class="chip ${c.enabled ? "ok" : "none"}">${c.enabled ? "actief" : "inactief"}</span><span>P-Mode: ${esc(c.pmodeId || "—")}</span><button class="btn sm sec" data-pl-act="as4-toggle" data-cred="${esc(c.credential)}" data-action="${c.enabled ? "deactivate" : "activate"}">${c.enabled ? "Deactiveren" : "Activeren"}</button>${c.enabled ? `<button class="btn sm sec" data-pl-act="as4-scan" data-cred="${esc(c.credential)}">Nu inlezen</button>` : ""}</div>${c.outDirectory ? `<div class="faint">AS4 Gateway watchPath: <code>${esc(c.outDirectory)}</code><br>deliveryDirectory (format=ebms): <code>${esc(c.deliveryDirectory)}</code></div>` : ""}</div>`).join("") || '<p class="faint">Maak eerst een AS4-koppeling.</p>'}
+      <p class="faint">Accepted betekent acceptatie door AS4 Gateway. Alleen een partnerreceipt bevestigt aflevering. Deactiveren stopt platformaanlevering; reeds aangeboden berichten blijven onder beheer van AS4 Gateway.</p>
+    </div><div class="tw"><table><thead><tr><th>Bericht</th><th>Inbox/outbox</th><th>Koppeling</th><th>Status</th><th></th></tr></thead><tbody>${messages.slice(-100).reverse().map(m => `<tr><td class="mono">${esc(m.messageId)}<div class="faint">${esc(m.action)}</div></td><td>${esc(m.box)}</td><td>${esc(m.credential)}</td><td><span class="chip ${["processed", "delivered"].includes(m.state) ? "ok" : ["failed", "uncertain"].includes(m.state) ? "warn" : "info"}">${esc(m.state)}</span>${m.deliveryConfirmed ? ' <span class="chip ok">aflevering bevestigd</span>' : ""}${m.lastError ? `<div class="faint">${esc(m.lastError)}</div>` : ""}</td><td>${m.runId ? `<a href="#instance/${encodeURIComponent(m.runId)}">Procesrun</a>` : ""}${m.box === "inbox" && ["failed", "uncertain"].includes(m.state) ? `<button class="btn sm sec" data-pl-act="as4-redrive" data-id="${esc(m.id)}">Opnieuw aanbieden</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="5" class="faint">Nog geen AS4-berichten.</td></tr>'}</tbody></table></div></div>`);
+  }
+  if (["ebms", "digipoort", "berichtenbox", "lopende-zaken", "digilevering"].includes(d.id)) {
+    const [connections, messages] = await Promise.all([api(`/api/v1/ebms/${S.env}/connections`), api(`/api/v1/ebms/${S.env}/messages`)]);
+    const own = connections.filter(c => c.plugin === d.id);
+    const rows = messages.filter(m => m.plugin === d.id).slice(-100).reverse();
+    main.insertAdjacentHTML("beforeend", `<div class="card" style="margin-top:14px"><div class="ch"><h3>ebMS op ${esc(S.env.toUpperCase())}</h3><button class="btn sm sec" data-pl-act="ebms-refresh">Vernieuwen</button></div><div class="cb">
+      <p class="muted">Kies in het proces de trigger <b>ebXML / ebMS ontvangst</b> en deze koppeling. Het proces ontvangt <code>payload.xml</code>, bijlagen en <code>_ebms.messageId</code>. Een ontvangstbevestiging volgt na duurzame opslag.</p>
+      ${own.map(c => `<div class="row" style="margin:10px 0;flex-wrap:wrap"><b>${esc(c.credential)}</b><span class="chip ${c.enabled ? "ok" : "none"}">${c.enabled ? "actief" : "inactief"}</span><span>${esc(c.profile || "")}</span><button class="btn sm sec" data-pl-act="ebms-toggle" data-cred="${esc(c.credential)}" data-action="${c.enabled ? "deactivate" : "activate"}">${c.enabled ? "Deactiveren" : "Activeren"}</button>${c.endpoint ? `<code>${esc(c.endpoint)}</code>` : ""}</div>`).join("") || '<p class="faint">Maak eerst een koppeling.</p>'}
+      <p class="faint">Aflevering bevestigd betekent een geldige, gecorreleerde ebMS-acknowledgment. HTTP-acceptatie alleen bevestigt geen betrouwbare aflevering.</p>
+    </div><div class="tw"><table><thead><tr><th>Bericht</th><th>Inbox/outbox</th><th>Koppeling</th><th>Status</th><th>Pogingen</th><th></th></tr></thead><tbody>${rows.map(m => `<tr><td class="mono">${esc(m.messageId)}<div class="faint">${esc(m.action)}</div></td><td>${esc(m.box)}</td><td>${esc(m.credential)}</td><td><span class="chip ${["processed", "delivered"].includes(m.state) ? "ok" : ["failed", "uncertain"].includes(m.state) ? "warn" : "info"}">${esc(m.state)}</span>${m.deliveryConfirmed ? ' <span class="chip ok">aflevering bevestigd</span>' : ""}${m.lastError ? `<div class="faint">${esc(m.lastError)}</div>` : ""}</td><td>${esc(m.attempts)}</td><td>${m.runId ? `<a href="#instance/${encodeURIComponent(m.runId)}">Procesrun</a>` : ""}${["failed", "uncertain"].includes(m.state) ? `<button class="btn sm sec" data-pl-act="ebms-redrive" data-id="${esc(m.id)}">Opnieuw aanbieden</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="6" class="faint">Nog geen berichten op deze omgeving.</td></tr>'}</tbody></table></div></div>`);
+  }
 }
 
 // Velden van de koppeling volgens de authenticatie van de plugin.
@@ -201,6 +219,31 @@ document.addEventListener("click", async (e) => {
     if (act === "cred-new") await plCredModal(d);
     if (act === "cred-edit") await plCredModal(d, b.dataset.cred);
     if (act === "try") await tryOperation(d, b.dataset.op);
+    if (act === "as4-refresh") await render();
+    if (act === "as4-toggle" || act === "as4-scan") {
+      const result = await api(`/api/v1/as4/${S.env}/connections/${encodeURIComponent(b.dataset.cred)}/${act === "as4-scan" ? "scan" : b.dataset.action}`, { body: {} });
+      if (act === "as4-scan") toast(`${result.imported} berichten ingelezen${result.errors.length ? "; " + result.errors.length + " afgewezen" : ""}`, result.errors.length > 0);
+      await render();
+    }
+    if (act === "as4-redrive") {
+      const env = S.env, id = b.dataset.id;
+      confirmModal("AS4-bericht opnieuw verwerken?", "Eerdere processtappen kunnen al zakelijke effecten hebben gehad. Controleer dit vóór opnieuw verwerken.", async () => {
+        await api(`/api/v1/as4/${env}/messages/${encodeURIComponent(id)}/redrive`, { body: {} });
+        await render();
+      }, "Opnieuw aanbieden");
+    }
+    if (act === "ebms-refresh") await render();
+    if (act === "ebms-toggle") {
+      await api(`/api/v1/ebms/${S.env}/connections/${encodeURIComponent(b.dataset.cred)}/${b.dataset.action}`, { body: {} });
+      await render();
+    }
+    if (act === "ebms-redrive") {
+      const env = S.env, id = b.dataset.id;
+      confirmModal("Bericht opnieuw aanbieden?", "Eerdere processtappen kunnen al uitgevoerd zijn. Controleer de procesrun voordat je dezelfde invoer opnieuw verwerkt.", async () => {
+        await api(`/api/v1/ebms/${env}/messages/${encodeURIComponent(id)}/redrive`, { body: {} });
+        await render();
+      }, "Opnieuw aanbieden");
+    }
     if (act === "cred-test") {
       const r = await api(`/api/v1/plugins/${encodeURIComponent(d.id)}/test`, { body: { credential: b.dataset.cred, env: S.env } });
       toast(r.ok ? `✓ Koppeling werkt op ${S.env.toUpperCase()} (${r.operation})` : `✕ ${r.error}`, !r.ok);

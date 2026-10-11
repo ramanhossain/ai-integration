@@ -31,6 +31,16 @@ class Persistence {
     return this.driver.kind;
   }
 
+  async create(collection: string, id: string, doc: unknown): Promise<boolean> {
+    if (!this.ready) throw new Error("Duurzame opslag is nog niet geïnitialiseerd");
+    return this.driver.create(scopeCollection(collection), id, doc);
+  }
+
+  async replace(collection: string, id: string, expected: unknown, doc: unknown): Promise<boolean> {
+    if (!this.ready) throw new Error("Duurzame opslag is nog niet geïnitialiseerd");
+    return this.driver.replace(scopeCollection(collection), id, expected, doc);
+  }
+
   async loadAll(collection: string): Promise<Array<{ id: string; doc: unknown }>> {
     if (!this.ready) return [];
     return this.driver.loadAll(scopeCollection(collection));

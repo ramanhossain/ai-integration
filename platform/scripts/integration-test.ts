@@ -49,7 +49,7 @@ const linear = (name: string, trigger: any, steps: any[]) => ({
 async function main() {
   line("Catalogus");
   const cat = (await api("GET", "/api/v1/step-types")).data;
-  assert(cat.steps.length >= 18 && cat.triggers.length === 7, `${cat.steps.length} staptypes, ${cat.triggers.length} triggertypes`);
+  assert(cat.steps.length >= 18 && cat.triggers.length === 9, `${cat.steps.length} staptypes, ${cat.triggers.length} triggertypes`);
 
   line("Koppelingen: per omgeving, geheimen versleuteld en gemaskeerd");
   const cred = await api("PUT", "/api/v1/credentials/partner-api", { type: "api-key", description: "Test", values: { dev: { header: "x-api-key", key: "dev-geheim-123" }, test: { header: "x-api-key", key: "test-geheim-456" } } });

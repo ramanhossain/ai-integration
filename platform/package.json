@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "repository": "github:ramanhossain/ai-integration",
-  "description": "Agentic Integration Platform \u2014 eigen workflow-engine, omgevingen dev/test/acc/prod, agents en human-in-the-loop",
+  "description": "Agentic Integration Platform — eigen workflow-engine, omgevingen dev/test/acc/prod, agents en human-in-the-loop",
   "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -14,6 +14,8 @@
     "agent": "tsx src/agent/main.ts",
     "test:integration": "tsx scripts/integration-test.ts",
     "test:plugins": "tsx scripts/plugin-test.ts",
+    "test:as4": "AIP_STORAGE=memory AIP_AUTH=off tsx scripts/as4-test.ts",
+    "test:ebms": "AIP_STORAGE=memory AIP_AUTH=off tsx scripts/ebms-test.ts",
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:auth": "tsx scripts/auth-test.ts",
@@ -24,6 +26,7 @@
     "@fastify/swagger": "^9.9.1",
     "@fastify/swagger-ui": "^6.1.1",
     "@modelcontextprotocol/sdk": "^1.31.0",
+    "@xmldom/xmldom": "^0.9.12",
     "ajv": "^8.17.1",
     "amqplib": "^2.2.0",
     "basic-ftp": "^6.2.1",
@@ -44,6 +47,7 @@
     "rhea": "^3.0.5",
     "simple-icons": "^16.33.0",
     "ssh2-sftp-client": "^12.1.1",
+    "xml-crypto": "^6.3.3",
     "yaml": "^2.9.1",
     "zod": "^3.25.76"
   },

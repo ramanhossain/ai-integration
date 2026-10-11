@@ -6,3 +6,6 @@ dist/
 
 # lokale data (bestandsopslag)
 data/store/
+
+# AS4 gateway-spool bevat zakelijke payloads
+data/as4/

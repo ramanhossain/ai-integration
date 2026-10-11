@@ -386,6 +386,8 @@ export const STEP_CATALOG = [
 ];
 
 export const TRIGGER_CATALOG = [
+  { type: "as4", label: "AS4 Gateway ontvangst", description: "Start na duurzame ontvangst via de AS4 Gateway", config: { credential: "AS4-plugin-koppeling", service: "optioneel servicefilter", action: "optioneel actiefilter" } },
+  { type: "ebms", label: "ebXML / ebMS ontvangst", description: "Start na duurzame ontvangst van een ebMS-bericht; mTLS en CPA-controle per omgeving", config: { credential: "ebMS-plugin-koppeling", service: "optioneel servicefilter", action: "optioneel actiefilter" } },
   { type: "manual", label: "Handmatig", description: "Starten vanuit de GUI, API of MCP", config: {} },
   { type: "api", label: "API-endpoint", description: "REST-endpoint per omgeving: /apis/<omgeving>/<pad>, met padparameters en OpenAPI-specificatie", config: { path: "bv. orders/{id}", method: "GET | POST | PUT | PATCH | DELETE", auth: "none | apikey", credential: "api-key-koppeling" } },
   { type: "webhook", label: "Webhook / HTTP", description: "HTTP-endpoint per omgeving: /hooks/<omgeving>/<pad>", config: { path: "pad (default procesnaam)", method: "POST | GET | PUT", auth: "none | apikey", credential: "api-key-koppeling (per omgeving andere sleutel)", response: "result | accepted" } },

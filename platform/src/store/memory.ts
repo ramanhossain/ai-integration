@@ -30,5 +30,17 @@ export class MemoryDriver implements PersistenceDriver {
     this.col(collection).delete(id);
   }
 
+  async create(collection: string, id: string, doc: unknown): Promise<boolean> {
+    if (this.col(collection).has(id)) return false;
+    this.col(collection).set(id, structuredClone(doc));
+    return true;
+  }
+
+  async replace(collection: string, id: string, expected: unknown, doc: unknown): Promise<boolean> {
+    if (JSON.stringify(this.col(collection).get(id)) !== JSON.stringify(expected)) return false;
+    this.col(collection).set(id, structuredClone(doc));
+    return true;
+  }
+
   async close(): Promise<void> {}
 }
