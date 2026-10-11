@@ -49,7 +49,7 @@ De belangrijkste onderdelen:
 - **ebMS 2.0 en AS4:**
   - Plugins `ebms`, `digipoort`, `berichtenbox`, `lopende-zaken` en `digilevering`.
   - AS4 werkt via een Holodeck-gateway.
-  - Deze onderdelen zijn gebouwd in een **andere sessie** en zijn nog niet gecommit (zie §9).
+  - Deze onderdelen zijn gebouwd in een andere sessie en sinds 11 oktober 2026 gecommit (`9eecc80`).
 
 Licentie: MIT (publieke repository).
 
@@ -162,13 +162,14 @@ npm run seed         # demodata in een draaiende server
 | `npm run typecheck` | TypeScript |
 
 - Controleer de GUI-bestanden met `node --check public/*.js`.
-- De integratietest verwacht precies het aantal triggertypes in `TRIGGER_CATALOG`: **7** zonder ebMS/AS4, **9** met. In de lokale werkkopie staat 9; in git nog 7.
+- De integratietest verwacht precies het aantal triggertypes in `TRIGGER_CATALOG` (nu **9**, inclusief ebMS en AS4).
 
 ---
 
 ## 6. Codespace (gratis hosting)
 
 - Bestanden: `.devcontainer/devcontainer.json` en `.devcontainer/start.sh`.
+  - `start.sh` draait eerst `npm ci` als `package-lock.json` nieuwer is dan de geïnstalleerde pakketten (nodig na een `git pull` met nieuwe dependencies).
   - `start.sh` start de server losgekoppeld (`setsid nohup`) op poort 3001.
   - Het maakt eenmalig een eigen `AIP_SECRET_KEY` aan in `platform/data/.secret`.
   - Het wacht tot `/health` antwoordt; logs staan in `/tmp/aip.log`.
@@ -258,27 +259,10 @@ npm run seed         # demodata in een draaiende server
 
 ---
 
-## 9. Werk van een andere sessie (ebMS/AS4): niet zonder overleg committen
+## 9. Werk van een andere sessie (ebMS/AS4)
 
-- Niet gecommit, en bewust buiten alle commits gehouden:
-  - `platform/docs/`;
-  - `scripts/ebms-test.ts` en `scripts/as4-test.ts`;
-  - `src/api/ebmsRoutes.ts` en `src/api/as4Routes.ts`;
-  - `src/plugins/ebms*` en `src/plugins/as4*`;
-  - `src/plugins/defs/ebms.ts` en `src/plugins/defs/as4.ts`.
-- Daarnaast staan er wijzigingen van die sessie in gedeelde bestanden:
-  - `index.ts` (TLS en routes), `tenancy/boot.ts`, `triggers/manager.ts` en `engine/nodes.ts` (triggers);
-  - `auth/guard.ts`, `store/*`, `plugins/registry.ts` en `plugins/drivers.ts`;
-  - `public/app.js`, `public/editor.js`, `public/plugins.js` en `public/admin.js`;
-  - `schemas/integration.schema.json`, `package.json` (kafkajs/ebMS-dependencies), `.gitignore` en `README.md`;
-  - `scripts/integration-test.ts` (9 triggers).
-- **Zo commit je alleen je eigen werk uit gemengde bestanden:**
-  1. Neem van de huidige werkkopie de `git diff -U0`.
-  2. Draai van onder naar boven alleen de hunks terug die `ebms`, `as4` of `holodeck` bevatten.
-  3. Schrijf het resultaat in een tijdelijke worktree vanaf HEAD.
-  4. Draai daar `tsc`, `node --check` en de testsuites.
-  5. Stage de bestanden met `git hash-object -w` en `git update-index --cacheinfo`.
-- Let op: hunks zonder zo'n trefwoord kunnen tóch van die sessie zijn (bijvoorbeeld TLS in `index.ts`). Controleer daarom altijd de diff.
+- Het ebMS/AS4-werk is op verzoek van de gebruiker gecommit en gepusht (`9eecc80`, 11 oktober 2026), nadat het was gecontroleerd op geheimen en verboden namen en alle testsuites slaagden (ook `test:ebms` en `test:as4`).
+- Werken er later weer twee sessies tegelijk in dezelfde bestanden, commit dan alleen je eigen hunks: draai in een tijdelijke worktree de hunks van de andere sessie terug, test daar (`tsc`, `node --check`, suites) en stage met `git hash-object -w` + `git update-index --cacheinfo`.
 
 ---
 
@@ -304,4 +288,3 @@ npm run seed         # demodata in een draaiende server
 
 - Er is nog geen lus- of split-stap.
 - Odoo-netwerkfouten tonen nog geen foutcode, zoals ECONNREFUSED.
-- De ebMS/AS4-code wacht nog op een beslissing van de gebruiker over committen.

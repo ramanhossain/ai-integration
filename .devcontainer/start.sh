@@ -6,6 +6,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/../platform"
 mkdir -p data
+# Nieuwe of gewijzigde npm-pakketten (na git pull): eerst installeren, anders start de server niet.
+if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ]; then
+  echo "npm-pakketten bijwerken…"
+  npm ci --no-audit --no-fund
+fi
 [ -s data/.secret ] || (openssl rand -base64 32 > data/.secret && chmod 600 data/.secret)
 export AIP_SECRET_KEY="$(cat data/.secret)"
 export PORT=3001 HOST=0.0.0.0
