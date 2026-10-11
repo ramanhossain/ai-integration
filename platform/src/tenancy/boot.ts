@@ -12,6 +12,8 @@ import { broker } from "../connectors/queue";
 import { datatables } from "../connectors/datatables";
 import { triggers } from "../triggers/manager";
 import { apim } from "../apim/apim";
+import { as4 } from "../plugins/as4/manager";
+import { ebms } from "../plugins/ebms/manager";
 
 // Gegevens van één organisatie laden (in haar eigen context) en haar achtergrondwerk
 // (queues, triggers) starten. Timers die hier ontstaan houden de context van de organisatie.
@@ -36,6 +38,8 @@ export async function hydrateOrg(org: string): Promise<void> {
     await datatables.hydrate();
     await triggers.hydrate();
     await apim.hydrate();
+    await ebms.hydrate();
+    await as4.hydrate();
   });
 }
 
@@ -45,6 +49,8 @@ export function startOrg(org: string): void {
   runInOrg(org, () => {
     broker.start();
     triggers.start();
+    ebms.start();
+    as4.start();
   });
 }
 

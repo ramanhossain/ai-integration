@@ -891,6 +891,8 @@ const TRIGGER_DEFAULTS = (name) => ({
   schedule: { type: "schedule", cron: "*/5 * * * *" },
   webhook: { type: "webhook", method: "POST", path: name },
   api: { type: "api", method: "GET", path: `${String(name).toLowerCase()}/{id}` },
+  as4: { type: "as4", credential: "" },
+  ebms: { type: "ebms", credential: "" },
   queue: { type: "queue", queue: "orders" },
   file: { type: "file", dir: "inbox", pattern: "*", intervalSeconds: 30, format: "text", after: "move" },
   ftp: { type: "ftp", credential: "", dir: "/out", pattern: "*", intervalSeconds: 30, format: "text", after: "move" }
@@ -900,6 +902,8 @@ const TRIGGER_HELP = {
   schedule: "Periodiek: elke N minuten, dagelijks om een tijdstip, cron.",
   webhook: "Een systeem stuurt berichten naar een URL (POST).",
   api: "Een REST-endpoint met padparameters, API-key en OpenAPI-specificatie.",
+  as4: "Een AS4-bericht ontvangen via AS4 Gateway en automatisch in dit proces verwerken.",
+  ebms: "Een ebMS-bericht duurzaam ontvangen en automatisch in dit proces verwerken.",
   queue: "Elk bericht op een queue start het proces; mislukt → dead-letter.",
   file: "Nieuwe bestanden in een map van de omgeving.",
   ftp: "Nieuwe bestanden op een FTP-, FTPS- of SFTP-server."

@@ -46,6 +46,16 @@ export class PostgresDriver implements PersistenceDriver {
     await this.pool.query("DELETE FROM aip_documents WHERE collection = $1 AND id = $2", [collection, id]);
   }
 
+  async create(collection: string, id: string, doc: unknown): Promise<boolean> {
+    const r = await this.pool.query("INSERT INTO aip_documents (collection,id,doc) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING", [collection, id, JSON.stringify(doc)]);
+    return r.rowCount === 1;
+  }
+
+  async replace(collection: string, id: string, expected: unknown, doc: unknown): Promise<boolean> {
+    const r = await this.pool.query("UPDATE aip_documents SET doc=$4,updated_at=now() WHERE collection=$1 AND id=$2 AND doc=$3::jsonb", [collection, id, JSON.stringify(expected), JSON.stringify(doc)]);
+    return r.rowCount === 1;
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
   }

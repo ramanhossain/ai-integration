@@ -24,6 +24,8 @@ VIEWS.triggers = async (main) => {
     const c = t.config || {};
     if (t.type === "webhook") return `<code>${esc(t.url)}</code> ${copyBtn(t.url)}<div class="faint" style="font-size:.75rem">${esc(c.method || "POST")}${c.auth === "apikey" ? " · API-key: " + esc(c.credential || "?") : " · geen beveiliging"}</div>`;
     if (t.type === "api") return `<code>${esc(t.url)}</code><div class="faint" style="font-size:.75rem">${c.auth === "apikey" ? "API-key: " + esc(c.credential || "?") : "geen beveiliging"} · in de OpenAPI-catalogus</div>`;
+    if (t.type === "as4") return `<b>AS4 Gateway</b><div class="faint">${esc(c.credential || "kies een koppeling")}${c.action ? " · " + esc(c.action) : ""}</div>`;
+    if (t.type === "ebms") return `<code>${esc(t.url)}</code> ${copyBtn(t.url)}<div class="faint" style="font-size:.75rem">mTLS · ${esc(c.credential || "kies een koppeling")}${c.action ? " · " + esc(c.action) : ""}</div>`;
     if (t.type === "schedule") return c.everySeconds ? `elke ${esc(c.everySeconds)} s` : `<code>${esc(c.cron || "")}</code>`;
     if (t.type === "queue") return `queue <b>${esc(c.queue)}</b>`;
     if (t.type === "file") return `map <code>${esc(c.dir || "inbox")}/${esc(c.pattern || "*")}</code>`;

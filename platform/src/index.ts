@@ -33,12 +33,25 @@ import { registerAuth, AUTH_ENABLED } from "./auth/guard";
 import { registerAuthRoutes } from "./api/authRoutes";
 import { registerApimRoutes } from "./api/apimRoutes";
 import { hydrateOrg, startOrg } from "./tenancy/boot";
+import { registerAs4Routes } from "./api/as4Routes";
+import { as4 } from "./plugins/as4/manager";
+import { registerEbmsRoutes } from "./api/ebmsRoutes";
+import { ebms } from "./plugins/ebms/manager";
+import { runInOrg } from "./tenancy/context";
 
 const SCHEMA_DIR = join(__dirname, "..", "schemas");
 const PUBLIC_DIR = join(__dirname, "..", "public");
 
 export async function buildServer() {
-  const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" } });
+  const tlsCert = process.env.AIP_TLS_CERT_FILE, tlsKey = process.env.AIP_TLS_KEY_FILE;
+  if (Boolean(tlsCert) !== Boolean(tlsKey)) throw new Error("AIP_TLS_CERT_FILE en AIP_TLS_KEY_FILE moeten beide gezet zijn");
+  const https = tlsCert && tlsKey ? {
+    cert: readFileSync(tlsCert), key: readFileSync(tlsKey), minVersion: "TLSv1.2" as const,
+    ca: process.env.AIP_TLS_CA_FILE ? readFileSync(process.env.AIP_TLS_CA_FILE) : undefined,
+    crl: process.env.AIP_TLS_CRL_FILE ? readFileSync(process.env.AIP_TLS_CRL_FILE) : undefined,
+    requestCert: true, rejectUnauthorized: false,
+  } : undefined;
+  const app = Fastify({ ...(https ? { https } : {}), logger: { level: process.env.LOG_LEVEL ?? "info" } });
 
   // JSON-parser die een lege body accepteert (veel clients sturen content-type json
   // mee bij een POST zonder body, bv. pause/redrive-acties).
@@ -119,6 +132,8 @@ export async function buildServer() {
   await registerTransferRoutes(app);
   await registerRuntimeRoutes(app);
   await registerPluginRoutes(app);
+  await app.register(registerEbmsRoutes);
+  await app.register(registerAs4Routes);
   await registerConnectorRoutes(app);
   await registerApimRoutes(app);
 
@@ -175,6 +190,10 @@ export async function buildServer() {
   // GUI (de cockpit). Eén client naast agents en externe systemen.
   await app.register(fastifyStatic, { root: PUBLIC_DIR, prefix: "/app/" });
   app.get("/", async (_req, reply) => reply.redirect("/app/"));
+
+  app.addHook("onClose", async () => {
+    for (const org of accounts.orgIds()) runInOrg(org, () => { ebms.stop(); as4.stop(); });
+  });
 
   return app;
 }

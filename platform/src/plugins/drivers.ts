@@ -1,6 +1,8 @@
 import type { OperationDef, PluginDef } from "./types";
 import { currentOrg } from "../tenancy/context";
 import { assertTargetsAllowed, safeFetch } from "../net/egress";
+import { as4Driver } from "./as4";
+import { ebmsDriver } from "./ebms";
 
 // Drivers voor diensten die geen REST-API hebben (databases, message brokers, LDAP, IMAP, SSH)
 // of een eigen RPC-protocol (Odoo). Een operatie met `driver: "naam:actie"` komt hier uit.
@@ -391,6 +393,7 @@ const odoo: Driver = async (action, { params: p, values, credKey }) => {
 };
 
 export const DRIVERS: Record<string, Driver> = {
+  ebms: ebmsDriver, as4: as4Driver,
   mysql: sqlDriver("mysql"), mssql: sqlDriver("mssql"), oracle: sqlDriver("oracle"), postgres: sqlDriver("postgres"),
   mongodb: mongo, redis, kafka, mqtt, rabbitmq, amqp10, ldap, imap, ssh, odoo
 };
@@ -401,7 +404,8 @@ export async function runDriver(spec: string, c: DriverCtx): Promise<DriverResul
   const [name, action] = spec.split(":");
   const d = DRIVERS[name];
   if (!d) throw new Error(`Onbekende driver '${name}'`);
-  await assertTargetsAllowed(c.values as Record<string, unknown>);
+  // ebMS builds/inspects locally; its HTTPS transport validates and pins resolved addresses.
+  if (name !== "ebms" && name !== "as4") await assertTargetsAllowed(c.values as Record<string, unknown>);
   try { return await d(action, c); }
   catch (e) {
     const err = e as Error & { code?: string; cause?: { code?: string } };

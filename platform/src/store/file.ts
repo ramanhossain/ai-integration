@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync, readdirSync, openSync, closeSync, fsyncSync } from "node:fs";
 import { join } from "node:path";
 import type { PersistenceDriver } from "./driver";
 
@@ -23,6 +23,7 @@ export class FileDriver implements PersistenceDriver {
         const obj = JSON.parse(readFileSync(join(this.dir, f), "utf8")) as Record<string, unknown>;
         this.data.set(name, new Map(Object.entries(obj)));
       } catch (err) {
+        if (["ebms-messages", "as4-messages"].some(c => name === c || name.endsWith(`~${c}`))) throw new Error(`Duurzame berichtenopslag ${f} is beschadigd; herstel vereist vóór starten`);
         // Beschadigd bestand: niet overschrijven, wel melden.
         // eslint-disable-next-line no-console
         console.error(`[persistence] ${f} kon niet gelezen worden:`, (err as Error).message);
@@ -53,6 +54,23 @@ export class FileDriver implements PersistenceDriver {
     if (this.col(collection).delete(id)) this.touch(collection);
   }
 
+  // File storage supports one control-plane writer. Postgres supports competing writers.
+  async create(collection: string, id: string, doc: unknown): Promise<boolean> {
+    if (this.col(collection).has(id)) return false;
+    this.col(collection).set(id, JSON.parse(JSON.stringify(doc)));
+    this.dirty.add(collection);
+    try { this.flush(); } catch (e) { this.col(collection).delete(id); throw e; }
+    return true;
+  }
+
+  async replace(collection: string, id: string, expected: unknown, doc: unknown): Promise<boolean> {
+    if (JSON.stringify(this.col(collection).get(id)) !== JSON.stringify(expected)) return false;
+    this.col(collection).set(id, JSON.parse(JSON.stringify(doc)));
+    this.dirty.add(collection);
+    try { this.flush(); } catch (e) { this.col(collection).set(id, expected); throw e; }
+    return true;
+  }
+
   private touch(collection: string): void {
     this.dirty.add(collection);
     if (!this.timer) this.timer = setTimeout(() => this.flush(), 150);
@@ -64,7 +82,13 @@ export class FileDriver implements PersistenceDriver {
       const file = join(this.dir, `${encodeURIComponent(name)}.json`);
       const tmp = `${file}.tmp`;
       writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.col(name))));
+      const fd = openSync(tmp, "r");
+      try { fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(tmp, file);
+    }
+    if (this.dirty.size) {
+      const dirFd = openSync(this.dir, "r");
+      try { fsyncSync(dirFd); } finally { closeSync(dirFd); }
     }
     this.dirty.clear();
   }

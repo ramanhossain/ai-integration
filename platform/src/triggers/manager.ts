@@ -353,6 +353,7 @@ class TriggerManager {
   }
 
   // ---------- beheer ----------
+  isPaused(env: EnvName, name: string): boolean { return this.paused.has(k(env, name)); }
   setPaused(env: EnvName, name: string, paused: boolean, actor: string): void {
     const key = k(env, name);
     if (paused) { this.paused.add(key); persistence.put("trigger-paused", key, { key }); }
@@ -380,8 +381,8 @@ class TriggerManager {
           type: trig.type,
           config: trig,
           paused: this.paused.has(key),
-          running: Boolean(a) || trig.type === "webhook" || trig.type === "api",
-          url: trig.type === "webhook" ? `${baseUrl}${orgPathPrefix()}/hooks/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : trig.type === "api" ? `${String(trig.method || "GET").toUpperCase()} ${baseUrl}${orgPathPrefix()}/apis/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : undefined,
+          running: !this.paused.has(key) && (Boolean(a) || trig.type === "webhook" || trig.type === "api" || trig.type === "ebms" || trig.type === "as4"),
+          url: trig.type === "ebms" ? `${baseUrl}${orgPathPrefix()}/ebms/${env}/${encodeURIComponent(String(trig.credential || ""))}` : trig.type === "webhook" ? `${baseUrl}${orgPathPrefix()}/hooks/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : trig.type === "api" ? `${String(trig.method || "GET").toUpperCase()} ${baseUrl}${orgPathPrefix()}/apis/${env}/${String(trig.path || s.integration).replace(/^\//, "")}` : undefined,
           nextAt: a?.nextAt,
           lastFiredAt: a?.lastFiredAt ?? wh?.lastFiredAt,
           lastRunId: a?.lastRunId ?? wh?.lastRunId,
