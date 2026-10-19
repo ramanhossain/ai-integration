@@ -133,6 +133,8 @@ const nodes: Record<string, NodeHandler> = {
   // Velden toevoegen; waarden mogen {{templates}} bevatten.
   enrich: async (payload, step, ctx) => {
     // keepOthers false = alleen de ingestelde velden (zoals "Include Other Input Fields" uit); standaard: alles behouden.
+    const unknown = Object.keys(step.config ?? {}).filter((k) => !["set", "keepOthers"].includes(k));
+    if (unknown.length) throw new Error(`Velden instellen: onbekende instelling(en) ${unknown.join(", ")}. Velden horen onder "set", bv. { "set": { "orderId": "{{orderId}}" } }`);
     const set = (step.config?.set as Record<string, unknown>) ?? {};
     if (!Object.keys(set).length) return payload; // nog niets ingesteld: ongewijzigd doorgeven
     let out: Payload = step.config?.keepOthers === false ? {} : { ...payload };
@@ -145,8 +147,15 @@ const nodes: Record<string, NodeHandler> = {
     const field = String(c.field || (c.mode === "generate" ? "records" : "content"));
     const target = String(c.target || (c.mode === "generate" ? "csv" : "records"));
     const opts = { delimiter: String(c.delimiter || ","), header: c.header !== false };
-    if (c.mode === "generate") return setPath(payload, target, csvGenerate(getPath(payload, field), opts));
-    return setPath(payload, target, csvParse(String(getPath(payload, field) ?? ""), opts));
+    const src = getPath(payload, field);
+    if (c.mode === "generate") {
+      if (!Array.isArray(src)) throw new Error(`CSV maken: bronveld '${field}' moet een lijst met records zijn`);
+      return setPath(payload, target, csvGenerate(src, opts));
+    }
+    if (src === undefined || src === null || src === "") throw new Error(`CSV lezen: bronveld '${field}' ontbreekt of is leeg`);
+    if (typeof src !== "string") throw new Error(`CSV lezen: bronveld '${field}' is geen tekst (CSV)`);
+    if (opts.header && !/\r?\n/.test(src.trim())) throw new Error(`CSV lezen: '${field}' bevat maar één regel ("${src.slice(0, 40)}"), die als kolomnamen wordt gelezen; er zijn dus geen records. Kies een bronveld met CSV-tekst of zet "Eerste regel bevat kolomnamen" uit.`);
+    return setPath(payload, target, csvParse(src, opts));
   },
 
   xml: async (payload, step) => {
@@ -154,7 +163,9 @@ const nodes: Record<string, NodeHandler> = {
     const field = String(c.field || (c.mode === "build" ? "data" : "content"));
     const target = String(c.target || (c.mode === "build" ? "xml" : "data"));
     if (c.mode === "build") return setPath(payload, target, xmlBuild(getPath(payload, field), c.root ? String(c.root) : undefined));
-    return setPath(payload, target, xmlParse(String(getPath(payload, field) ?? "")));
+    const src = getPath(payload, field);
+    if (src === undefined || src === null || src === "") throw new Error(`XML lezen: bronveld '${field}' ontbreekt of is leeg`);
+    return setPath(payload, target, xmlParse(String(src)));
   },
 
   // ---------- Kern ----------

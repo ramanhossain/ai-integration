@@ -1,3 +1,4 @@
+import { withRefs } from "../connectors/util";
 import { randomUUID } from "node:crypto";
 import type { Integration } from "../domain/types";
 import type { EnvName } from "../domain/environments";
@@ -128,6 +129,7 @@ class Engine {
       .reverse()
       .map((c) => ({ id: c.to, payload }));
     let executed = 0;
+    const outputs: Record<string, unknown> = {}; // per stap de output, voor {{$steps.<id>.…}}
 
     while (stack.length && status === "success") {
       const { id, payload: inPayload } = stack.pop()!;
@@ -151,6 +153,7 @@ class Engine {
       // Vastgezette output (alleen bij test-runs vanuit de editor): niet opnieuw uitvoeren.
       if (flags.pinData && !def.version) {
         payload = { ...flags.pinData };
+        outputs[step.id] = payload;
         const port = step.type === "branch" ? ((payload._branch as { taken?: boolean })?.taken === false ? "false" : "true") : "out";
         steps.push({ id: step.id, type: step.type, status: "ok", ms: 0, attempts: 0, port: step.type === "branch" ? port : undefined, input: clip(inPayload), output: clip(payload) });
         if (step.type === "end") continue;
@@ -160,12 +163,13 @@ class Engine {
       // Alleen stappen met I/O naar buiten krijgen retries; data-stappen zijn deterministisch.
       const retries = RETRYABLE.has(step.type) ? attempts : 0;
       try {
-        const { out, tries } = await this.runStep(() => getNode(step.type)(inPayload, step, ctx), retries, backoff);
-        payload = out;
+        const { out, tries } = await this.runStep(() => getNode(step.type)(withRefs(inPayload, { steps: outputs, trigger: input }), step, ctx), retries, backoff);
+        payload = { ...out }; // zonder de verwijzingen
+        outputs[step.id] = payload;
         const port = step.type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : "out";
-        steps.push({ id: step.id, type: step.type, status: "ok", ms: Date.now() - t0, attempts: tries, port: step.type === "branch" ? port : undefined, input: clip(inPayload), output: clip(out) });
+        steps.push({ id: step.id, type: step.type, status: "ok", ms: Date.now() - t0, attempts: tries, port: step.type === "branch" ? port : undefined, input: clip(inPayload), output: clip(payload) });
         if (step.type === "end") continue;
-        for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload: out });
+        for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload });
       } catch (err) {
         error = (err as Error).message;
         steps.push({ id: step.id, type: step.type, status: "failed", ms: Date.now() - t0, attempts: (err as { tries?: number }).tries ?? retries + 1, error, input: clip(inPayload) });
@@ -210,10 +214,10 @@ class Engine {
   }
 
   // Eén stap los uitvoeren (proceseditor: "Stap uitvoeren"). Heeft geen bijwerkingen op runs.
-  async executeStep(type: string, config: Record<string, unknown>, input: Record<string, unknown>, env: EnvName = "dev"): Promise<{ ok: boolean; ms: number; output?: unknown; error?: string; port?: string }> {
+  async executeStep(type: string, config: Record<string, unknown>, input: Record<string, unknown>, env: EnvName = "dev", refs: { steps?: Record<string, unknown>; trigger?: unknown } = {}): Promise<{ ok: boolean; ms: number; output?: unknown; error?: string; port?: string }> {
     const t0 = Date.now();
     try {
-      const out = await getNode(type)(input, { id: "step", type, config }, this.context("editor", env, 0));
+      const out = { ...(await getNode(type)(withRefs(input, refs), { id: "step", type, config }, this.context("editor", env, 0))) };
       const port = type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : undefined;
       return { ok: true, ms: Date.now() - t0, output: out, port };
     } catch (err) {

@@ -203,6 +203,11 @@ npm run seed         # demodata in een draaiende server
   - De engine normaliseert dit centraal in `getNode` (`normalizeStep`).
   - De editor zet in zulke velden het kale pad. In de naamkolom van een rij komen de naam en de verwijzing (`{{veld}}`) als waarde.
   - In tekstvelden blijft het een `{{template}}`.
+- **Verwijzen naar eerdere stappen:**
+  - `{{$steps.<stap-id>.<pad>}}` geeft de output van een eerdere stap, `{{$trigger.<pad>}}` het oorspronkelijke bericht. Dat werkt in de engine (volledige run én "Stap uitvoeren") en ook in pad-velden.
+  - In de INPUT kies je met de keuzelijst "Data van" een eerdere stap of de trigger; klikken of slepen geeft dan de verwijzing met `$steps`/`$trigger`.
+  - De output van "Stap uitvoeren" wordt onthouden en is de invoer van de volgende stap; een volledige uitvoering heeft voorrang.
+- **Configuratie bewaken:** onbekende instellingen bij Velden instellen, Transformatie of Validatie (bijvoorbeeld geplakte data) geven een waarschuwing met de knop "Herstellen", en de engine geeft een duidelijke fout. CSV/XML lezen meldt een leeg, ontbrekend of onbruikbaar bronveld.
 - **Velden instellen en Transformatie:**
   - Er is een vinkje "Overige / niet-gemapte velden behouden". Bij nieuwe stappen staat het uit, dus de output bevat alleen de ingestelde velden. Bestaande stappen houden het oude gedrag.
   - Een stap zonder regels geeft het bericht ongewijzigd door.

@@ -7,6 +7,15 @@ export function getPath(obj: unknown, path: string): unknown {
   return p.split(".").reduce<unknown>((acc, k) => (acc && typeof acc === "object" ? (acc as Record<string, unknown>)[k] : undefined), obj);
 }
 
+// Verwijzingen naar eerdere stappen in templates: {{$steps.<stap-id>.<pad>}} en {{$trigger.<pad>}}
+// (het oorspronkelijke bericht). Niet-opsombaar, zodat ze nooit in de output of in logs terechtkomen.
+export function withRefs(payload: Record<string, unknown>, refs: { steps?: Record<string, unknown>; trigger?: unknown }): Record<string, unknown> {
+  const p = { ...payload };
+  Object.defineProperty(p, "$steps", { value: refs.steps ?? {}, enumerable: false });
+  Object.defineProperty(p, "$trigger", { value: refs.trigger ?? {}, enumerable: false });
+  return p;
+}
+
 export function setPath(obj: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
   const out = { ...obj };
   const keys = path.split(".");

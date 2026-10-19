@@ -1460,6 +1460,27 @@
     return cfg;
   }
 
+  // Bekende instellingen per staptype (voor waarschuwing/herstel van handmatig geplakte JSON).
+  const CFG_KEYS = { enrich: ["set", "keepOthers"], transform: ["mapping", "keepOthers"], validate: ["required"] };
+  const unknownKeys = (type, cfg) => (CFG_KEYS[type] && cfg && typeof cfg === "object" && !Array.isArray(cfg) ? Object.keys(cfg).filter((k) => !CFG_KEYS[type].includes(k)) : []);
+  // Geplakte data herstellen: losse velden horen onder set/mapping; een lijst onder required.
+  function repairConfig(type, cfg, force = false) {
+    if (type === "validate" && Array.isArray(cfg)) return { required: cfg.map(String) };
+    const extra = unknownKeys(type, cfg);
+    if (!extra.length) return cfg;
+    const box = type === "enrich" ? "set" : type === "transform" ? "mapping" : null;
+    if (!box || (!force && cfg[box] !== undefined)) return cfg;
+    const moved = Object.fromEntries(extra.map((k) => [k, cfg[k]]));
+    const rest = Object.fromEntries(Object.entries(cfg).filter(([k]) => !extra.includes(k)));
+    return { ...rest, [box]: { ...(cfg[box] || {}), ...moved }, keepOthers: cfg.keepOthers ?? false };
+  }
+  function cfgWarning(step) {
+    const extra = unknownKeys(step.type, step.config);
+    if (!extra.length) return "";
+    const box = step.type === "enrich" ? "Velden instellen" : step.type === "transform" ? "Mapping" : "";
+    return `<div class="xf-note warn" style="margin-bottom:10px"><b>Onbekende instelling(en): ${extra.map(esc).join(", ")}.</b> Deze stap gebruikt ze niet${box ? `; waarschijnlijk horen ze onder <b>${box}</b>` : ""}.${box ? ` <button type="button" class="btn sm" data-fixcfg>Herstellen</button>` : ""}</div>`;
+  }
+
   function formHtml(step, ctx) {
     const c = step.config || {};
     switch (step.type) {
@@ -1737,6 +1758,47 @@
       if (src) return src.data;
       try { return JSON.parse(o.getTestInput() || "{}"); } catch { return {}; }
     }
+    // ---- data van eerdere stappen ({{$steps.<id>.…}}) en van de trigger ({{$trigger.…}})
+    function stepOutput(id) {
+      const sr = stepRuns[id];
+      if (sr && sr.result.ok) return sr.result.output;
+      const s = o.run && o.run.steps ? o.run.steps.filter((x) => x.id === id).pop() : null;
+      return s && s.status === "ok" ? s.output : undefined;
+    }
+    function triggerData() {
+      const first = o.run && o.run.steps && o.run.steps[0];
+      if (first && first.input !== undefined && !Object.keys(stepRuns).length) return first.input;
+      try { return JSON.parse(o.getTestInput() || "{}"); } catch { return {}; }
+    }
+    // Alle stappen vóór deze stap (dichtstbijzijnde eerst).
+    function ancestors() {
+      const seen = new Set(), order = [];
+      let frontier = [o.id];
+      while (frontier.length) {
+        const next = [];
+        for (const id of frontier) for (const c of (def.connections || []).filter((x) => x.to === id)) {
+          if (c.from === "start" || seen.has(c.from)) continue;
+          seen.add(c.from); order.push(c.from); next.push(c.from);
+        }
+        frontier = next;
+      }
+      return order;
+    }
+    function refs() {
+      const steps = {};
+      for (const s of def.steps) { const v = stepOutput(s.id); if (v !== undefined) steps[s.id] = v; }
+      return { steps, trigger: triggerData() };
+    }
+    // Invoer met verwijzingen (niet-opsombaar, zoals in de engine) voor de voorbeeldwaarde.
+    function previewData() {
+      const d = inputData();
+      const base = d && typeof d === "object" && !Array.isArray(d) ? { ...d } : { value: d };
+      const r = refs();
+      Object.defineProperty(base, "$steps", { value: r.steps, enumerable: false });
+      Object.defineProperty(base, "$trigger", { value: r.trigger, enumerable: false });
+      return base;
+    }
+    let inSel = ""; // "" = directe invoer; anders een stap-id of "$trigger"
     function renderIn() {
       if (isStart) {
         $n("#ndv-in").innerHTML = `<p class="muted">Het startevent ontvangt het bericht van de trigger. Bij “Proces uitvoeren” in de editor gaat de testdata (rechts) het proces in.</p>
@@ -1744,13 +1806,27 @@
         return;
       }
       const src = inputSource();
-      const data = inputData();
+      const anc = ancestors();
+      const nameOf = (id) => { const s = def.steps.find((x) => x.id === id); return s ? s.name || s.id : id; };
+      if (inSel && inSel !== "$trigger" && !anc.includes(inSel)) inSel = "";
+      const chosen = inSel === "$trigger" ? triggerData() : inSel ? stepOutput(inSel) : inputData();
       const notReached = o.run && !lastStep;
-      $n("#ndv-in-n").textContent = `· ${itemCount(data)}`;
-      $n("#ndv-in").innerHTML = `<div class="ndv-src">${src ? esc(src.label) : notReached ? "Niet bereikt in de laatste uitvoering — testdata van het proces" : "Geen uitvoering — testdata van het proces"}
+      const options = [["", `Invoer van deze stap${src ? "" : " (testdata)"}`], ...anc.map((id) => {
+        const failed = (stepRuns[id] && !stepRuns[id].result.ok) || (o.run && o.run.steps && o.run.steps.some((x) => x.id === id && x.status === "failed"));
+        return [id, `Stap: ${nameOf(id)}${stepOutput(id) !== undefined ? "" : failed ? " — mislukt" : " — nog niet uitgevoerd"}`];
+      }), ["$trigger", "Trigger (oorspronkelijk bericht)"]];
+      $n("#ndv-in-n").textContent = chosen === undefined ? "" : `· ${itemCount(chosen)}`;
+      $n("#ndv-in").innerHTML = `<div class="ndv-insel"><label for="ndv-in-src" class="faint">Data van</label><select class="f" id="ndv-in-src">${options.map(([v, l]) => `<option value="${esc(v)}" ${v === inSel ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+        <div class="ndv-src">${inSel === "$trigger" ? "Verwijzing: <code>{{$trigger.veld}}</code>" : inSel ? `Verwijzing: <code>{{$steps.${esc(inSel)}.veld}}</code>` : src ? esc(src.label) : notReached ? "Niet bereikt in de laatste uitvoering — testdata van het proces" : "Geen uitvoering — testdata van het proces"}
           ${o.onRunPrevious ? `<button class="lnk" id="ndv-prev" type="button">▶ Vorige stappen uitvoeren</button>` : ""}</div>
         <div class="ndv-tip">Sleep een veld naar een invulveld in het midden, of klik in een invulveld en daarna op een veld.</div>
-        ${dataViewHtml(views.in, data)}`;
+        ${chosen === undefined ? `<div class="empty">Deze stap heeft nog geen output. Voer hem uit of klik op “Vorige stappen uitvoeren”.</div>` : dataViewHtml(views.in, chosen)}`;
+      // Velden van een eerdere stap of de trigger: verwijzing met $steps/$trigger ervoor.
+      if (inSel) {
+        const pre = inSel === "$trigger" ? "$trigger" : `$steps.${inSel}`;
+        $n("#ndv-in").querySelectorAll("[data-path]").forEach((x) => { const p = x.dataset.path; x.dataset.path = p ? (p.startsWith("[") ? pre + p : `${pre}.${p}`) : pre; });
+      }
+      $n("#ndv-in-src").addEventListener("change", (e) => { inSel = e.target.value; renderIn(); });
     }
     function renderOut() {
       const el = $n("#ndv-out");
@@ -1772,7 +1848,7 @@
         return;
       }
       if (tab === "p") {
-        el.innerHTML = formHtml(step, ctx) + (step.type === "end" ? "" : `<details class="adv"><summary>Configuratie als JSON</summary><textarea class="f" id="f-json">${esc(JSON.stringify(step.config || {}, null, 2))}</textarea></details>`);
+        el.innerHTML = cfgWarning(step) + formHtml(step, ctx) + (step.type === "end" ? "" : `<details class="adv"><summary>Configuratie als JSON</summary><textarea class="f" id="f-json">${esc(JSON.stringify(step.config || {}, null, 2))}</textarea></details>`);
       } else {
         el.innerHTML = `<label for="s-id">Technische naam (id)</label><input class="f mono" id="s-id" value="${esc(step.id)}">
           <div class="hint">Wordt gebruikt in logs en verbindingen. Letters, cijfers, - en _.</div>
@@ -1823,7 +1899,7 @@
     });
     overlay.addEventListener("change", (e) => {
       if (e.target.id === "f-json") {
-        try { step.config = JSON.parse(e.target.value || "{}"); e.target.classList.remove("bad"); changedNd(); renderForm(); }
+        try { step.config = repairConfig(step.type, JSON.parse(e.target.value || "{}")); e.target.classList.remove("bad"); changedNd(); renderForm(); }
         catch { e.target.classList.add("bad"); }
         return;
       }
@@ -1902,11 +1978,12 @@
         return;
       }
       if (e.target.id === "s-del") { closeNodeDetail(); o.onDelete(); return; }
+      if (e.target.closest("[data-fixcfg]")) { step.config = repairConfig(step.type, step.config, true); changedNd(); renderForm(); return; }
       if (e.target.closest("#ndv-run")) {
         const btn = $n("#ndv-run");
         btn.disabled = true;
         try {
-          const r = await o.api("/api/v1/engine/execute-step", { body: { type: step.type, config: step.config || {}, input: inputData() } });
+          const r = await o.api("/api/v1/engine/execute-step", { body: { type: step.type, config: step.config || {}, input: inputData(), ...refs() } });
           output = r.ok ? { ok: true, output: r.output, port: r.port, ms: r.ms } : { ok: false, error: r.error };
         } catch (err) { output = { ok: false, error: err.message }; }
         stepRuns[o.id] = { result: output, at: Date.now() }; // onthouden voor de volgende stap
@@ -1970,7 +2047,7 @@
       let pv = host.nextElementSibling && host.nextElementSibling.classList.contains("xp") ? host.nextElementSibling : null;
       if (!el.value.includes("{{")) { if (pv) pv.remove(); return; }
       if (!pv) { pv = document.createElement("div"); pv.className = "xp"; host.after(pv); }
-      const r = previewTpl(el.value, inputData());
+      const r = previewTpl(el.value, previewData());
       const txt = r === undefined ? "(leeg — pad bestaat niet in de invoer)" : typeof r === "object" && r !== null ? JSON.stringify(r) : String(r);
       pv.textContent = txt.length > 240 ? txt.slice(0, 240) + "…" : txt;
       pv.classList.toggle("miss", r === undefined || r === "");

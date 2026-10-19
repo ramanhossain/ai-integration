@@ -142,7 +142,7 @@ export async function registerPlatformRoutes(app: FastifyInstance): Promise<void
       })
   );
 
-  app.post<{ Body: { type: string; config?: Record<string, unknown>; input?: Record<string, unknown> } }>(
+  app.post<{ Body: { type: string; config?: Record<string, unknown>; input?: Record<string, unknown>; steps?: Record<string, unknown>; trigger?: Record<string, unknown> } }>(
     "/api/v1/engine/execute-step",
     {
       schema: {
@@ -150,11 +150,13 @@ export async function registerPlatformRoutes(app: FastifyInstance): Promise<void
         body: {
           type: "object",
           required: ["type"],
-          properties: { type: { type: "string" }, config: { type: "object", additionalProperties: true }, input: { type: "object", additionalProperties: true } }
+          properties: { type: { type: "string" }, config: { type: "object", additionalProperties: true }, input: { type: "object", additionalProperties: true },
+            steps: { type: "object", additionalProperties: true, description: "Output van eerdere stappen per stap-id, voor {{$steps.<id>.…}}" },
+            trigger: { type: "object", additionalProperties: true, description: "Oorspronkelijk bericht, voor {{$trigger.…}}" } }
         }
       }
     },
-    async (req) => engine.executeStep(req.body.type, req.body.config ?? {}, req.body.input ?? {})
+    async (req) => engine.executeStep(req.body.type, req.body.config ?? {}, req.body.input ?? {}, "dev", { steps: req.body.steps, trigger: req.body.trigger })
   );
 
   // Test-run vanuit de proceseditor: voert de (nog niet opgeslagen) definitie uit op DEV.
