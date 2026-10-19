@@ -174,6 +174,8 @@ const nodes: Record<string, NodeHandler> = {
     const c = step.config ?? {};
     // Ontbrekende {{variabelen}} in de URL niet stil leeg maken (zou een andere URL aanroepen).
     const missing = missingVars(c.url, payload);
+    // Optioneel: overslaan i.p.v. falen (bv. een product zonder leverancier).
+    if (missing.length && c.skipIfMissing) return setPath(payload, String(c.target || "_call"), { skipped: true, reason: `ontbrekend: ${missing.join(", ")}` });
     if (missing.length) throw Object.assign(new Error(`URL gebruikt ${missing.map((m) => `{{${m}}}`).join(", ")}, maar dat veld staat niet in het bericht`), { noRetry: true });
     const url = tpl(c.url, payload, ctx.env);
     // Zonder methode: GET (zoals in de editor), tenzij er expliciet een body is ingesteld.
@@ -208,7 +210,7 @@ const nodes: Record<string, NodeHandler> = {
       try { data = JSON.parse(text); } catch { /* tekst */ }
       // 4xx (behalve 408/429) is definitief: niet opnieuw proberen.
       if (!res.ok && c.failOnError !== false) throw Object.assign(new Error(`${method} ${u.host}${u.pathname} -> ${res.status} ${String(text).slice(0, 200)}`), { noRetry: res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429 });
-      return setPath(payload, target, { status: res.status, body: data });
+      return setPath(payload, target, { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: data });
     } finally {
       clearTimeout(timer);
     }
@@ -231,6 +233,35 @@ const nodes: Record<string, NodeHandler> = {
     if (!name) throw new Error("Subproces: kies een proces");
     if (!ctx.callProcess) throw new Error("Subproces niet beschikbaar in deze context");
     if ((ctx.depth ?? 0) >= 5) throw new Error("Subproces: maximale nesting (5) bereikt");
+    // Voor elk element van een lijst: het subproces per element uitvoeren en de uitkomsten verzamelen.
+    if (step.config?.forEach) {
+      const listPath = String(step.config.forEach);
+      const list = getPath(payload, listPath);
+      if (!Array.isArray(list)) throw new Error(`Subproces: '${listPath}' is geen lijst`);
+      const shared = (deepTpl(step.config.with ?? {}, payload, ctx.env) ?? {}) as Payload;
+      const limit = Math.max(1, Math.min(10, Number(step.config.concurrency || 1)));
+      const results: unknown[] = new Array(list.length);
+      const errors: Array<{ index: number; error: string }> = [];
+      let next = 0;
+      const worker = async () => {
+        while (next < list.length) {
+          const i = next++;
+          const el = list[i];
+          const input = { ...(el && typeof el === "object" && !Array.isArray(el) ? (el as Payload) : { value: el }), ...shared, _index: i };
+          try { results[i] = await ctx.callProcess!(name, input); }
+          catch (err) {
+            if (!step.config?.continueOnError) throw new Error(`Subproces '${name}' faalde bij element ${i + 1} van ${list.length}: ${(err as Error).message}`);
+            errors.push({ index: i, error: (err as Error).message });
+            results[i] = { _error: (err as Error).message };
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(limit, list.length) }, worker));
+      const target = String(step.config?.target || "subprocess");
+      let out = setPath(payload, target, results);
+      out = setPath(out, `${target}Samenvatting`, { totaal: list.length, geslaagd: list.length - errors.length, gefaald: errors.length, fouten: errors.slice(0, 50) });
+      return out;
+    }
     const input = step.config?.inputField ? (getPath(payload, String(step.config.inputField)) as Payload) : payload;
     const out = await ctx.callProcess(name, input ?? {});
     // merge: de uitkomst vervangt/vult het bericht (zoals de oorspronkelijke stap deed).
@@ -302,7 +333,8 @@ const nodes: Record<string, NodeHandler> = {
       cc: c.cc ? tpl(c.cc, payload, ctx.env) : undefined,
       subject: tpl(c.subject, payload, ctx.env),
       text: c.text ? tpl(c.text, payload, ctx.env) : undefined,
-      html: c.html ? tpl(c.html, payload, ctx.env) : undefined
+      html: c.html ? tpl(c.html, payload, ctx.env) : undefined,
+      from: c.from ? tpl(c.from, payload, ctx.env) : undefined
     });
     return setPath(payload, String(c.target || "_email"), r);
   },
@@ -351,7 +383,7 @@ export function setStepDelegate(fn: StepDelegate | null): void { delegate = fn; 
 
 // Instellingen die een veldpad of naam zijn (geen tekst-template): "{{orderId}}" telt als "orderId".
 // Zo werkt een veld dat in de editor is ingesleept in elke stap, ook in oudere definities.
-const PATH_CONFIG = ["field", "target", "bodyField", "inputField", "contentField", "key", "when", "sortBy"];
+const PATH_CONFIG = ["field", "target", "bodyField", "inputField", "contentField", "key", "when", "sortBy", "forEach"];
 function normalizeStep(step: StepDef): StepDef {
   const c = step.config;
   if (!c || typeof c !== "object") return step;
@@ -377,17 +409,17 @@ export const STEP_CATALOG = [
   { type: "enrich", group: "Data", label: "Velden instellen", description: "Velden toevoegen/overschrijven", config: { set: "{ veld: waarde | '{{template}}' }", keepOthers: "boolean (default true; false = alleen de ingestelde velden)" } },
   { type: "csv", group: "Data", label: "CSV", description: "CSV lezen of maken", config: { mode: "parse | generate", field: "bronveld", target: "doelveld", delimiter: "string", header: "boolean" } },
   { type: "xml", group: "Data", label: "XML", description: "XML lezen of maken", config: { mode: "parse | build", field: "bronveld", target: "doelveld", root: "rootelement (build)" } },
-  { type: "call", group: "Kern", label: "HTTP-aanroep", description: "REST/HTTP-API aanroepen", retryable: true, config: { method: "GET|POST|PUT|PATCH|DELETE (default GET; POST als body is ingesteld)", url: "template; leeg = gesimuleerd", credential: "http-basic | http-bearer | api-key", headers: "object", query: "object", body: "payload | field | custom | none", target: "doelveld (default _call)" } },
+  { type: "call", group: "Kern", label: "HTTP-aanroep", description: "REST/HTTP-API aanroepen", retryable: true, config: { method: "GET|POST|PUT|PATCH|DELETE (default GET; POST als body is ingesteld)", url: "template; leeg = gesimuleerd", credential: "http-basic | http-bearer | api-key", headers: "object", query: "object", body: "payload | field | custom | none", skipIfMissing: "boolean: overslaan als een {{veld}} in de URL ontbreekt", target: "doelveld (default _call); bevat status, headers en body" } },
   { type: "code", group: "Kern", label: "Code (JavaScript)", description: "Eigen JavaScript; `input` is het bericht, return het nieuwe bericht", config: { code: "string", timeoutMs: "number" } },
   { type: "delay", group: "Kern", label: "Wachten", description: "Pauzeer het proces", config: { ms: "number (max 60000)" } },
-  { type: "subprocess", group: "Kern", label: "Subproces", description: "Ander proces aanroepen op dezelfde omgeving", config: { process: "procesnaam", inputField: "optioneel", target: "doelveld" } },
+  { type: "subprocess", group: "Kern", label: "Subproces", description: "Ander proces aanroepen op dezelfde omgeving; optioneel per element van een lijst (lus)", config: { process: "procesnaam", inputField: "optioneel", forEach: "optioneel: pad naar een lijst; het subproces draait per element", with: "object met velden (templates) die elk element meekrijgt", concurrency: "1–10 tegelijk", continueOnError: "boolean", target: "doelveld (lijst met uitkomsten bij forEach)" } },
   { type: "file", group: "Bestanden", label: "Bestand (lokaal)", description: "Lezen/schrijven/lijst/verplaatsen/verwijderen in de bestandsmap van de omgeving", config: { operation: "read | write | list | move | delete", path: "template", format: "text | json | csv | xml", contentField: "veld (write)", pattern: "glob (list)", toPath: "template (move)", target: "doelveld" } },
   { type: "ftp", group: "Bestanden", label: "FTP / FTPS / SFTP", description: "Bestanden op een FTP-, FTPS- of SFTP-server", retryable: true, config: { credential: "ftp | ftps | sftp", operation: "download | upload | list | move | delete", path: "template", format: "text | json | csv | xml", contentField: "veld (upload)", pattern: "glob (list)", toPath: "template (move)", target: "doelveld" } },
   { type: "queue-publish", group: "Berichten", label: "Queue: publiceren", description: "Bericht op een queue zetten (zelfde omgeving)", retryable: true, config: { queue: "naam (template)", bodyField: "optioneel; default hele bericht" } },
   { type: "queue-get", group: "Berichten", label: "Queue: ophalen", description: "Berichten van een queue halen (pull) en bevestigen", config: { queue: "naam (template)", max: "aantal (1 = één bericht)", failIfEmpty: "boolean", target: "doelveld" } },
   { type: "datatable", group: "Database", label: "Datatabel", description: "Ingebouwde tabel (per omgeving): rijen toevoegen, zoeken, bijwerken, upserten of verwijderen", config: { table: "tabelnaam", operation: "insert | upsert | find | get | update | delete", conditions: "[{ column, op: eq|ne|gt|gte|lt|lte|contains|empty|notEmpty, value (template) }]", values: "{ kolom: waarde | '{{template}}' }", limit: "number", sortBy: "kolom", desc: "boolean", target: "doelveld" } },
   { type: "sql", group: "Database", label: "SQL (PostgreSQL)", description: "Query uitvoeren met parameters ($1, $2…)", retryable: true, config: { credential: "postgres", query: "string", params: "array van templates", single: "boolean", target: "doelveld" } },
-  { type: "email", group: "Communicatie", label: "E-mail (SMTP)", description: "E-mail versturen; zonder koppeling gesimuleerd", retryable: true, config: { credential: "smtp", to: "template", cc: "template", subject: "template", text: "template", html: "template" } },
+  { type: "email", group: "Communicatie", label: "E-mail (SMTP)", description: "E-mail versturen; zonder koppeling gesimuleerd", retryable: true, config: { credential: "smtp", from: "optioneel; anders de afzender van de koppeling", to: "template", cc: "template", subject: "template", text: "template", html: "template" } },
   { type: "notify", group: "Communicatie", label: "Teams / Slack", description: "Bericht naar een Teams- of Slack-webhook", retryable: true, config: { kind: "teams | slack", credential: "webhook", url: "optioneel", title: "template", text: "template" } },
   { type: "connector", group: "Plugins", label: "Connector (plugin)", description: "Een operatie van een plugin uitvoeren (Google, Microsoft, Slack, Salesforce, Stripe, …); zie /api/v1/plugins", retryable: true, config: { plugin: "plugin-id", operation: "operatie-id", credential: "koppeling (type plugin)", params: "object met parameters ({{templates}})", target: "doelveld" } },
   { type: "mcp-tool", group: "AI & MCP", label: "MCP-tool", description: "Tool aanroepen op een externe MCP-server", retryable: true, config: { credential: "mcp", url: "optioneel", tool: "toolnaam", arguments: "object met templates", target: "doelveld" } },

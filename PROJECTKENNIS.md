@@ -207,6 +207,8 @@ npm run seed         # demodata in een draaiende server
   - `{{$steps.<stap-id>.<pad>}}` geeft de output van een eerdere stap, `{{$trigger.<pad>}}` het oorspronkelijke bericht. Dat werkt in de engine (volledige run én "Stap uitvoeren") en ook in pad-velden.
   - In de INPUT kies je met de keuzelijst "Data van" een eerdere stap of de trigger; klikken of slepen geeft dan de verwijzing met `$steps`/`$trigger`.
   - De output van "Stap uitvoeren" wordt onthouden en is de invoer van de volgende stap; een volledige uitvoering heeft voorrang.
+- **Lus over een lijst:** de stap Subproces heeft "Voor elk element van lijst" (`forEach`): het subproces draait per element (optioneel met gedeelde velden `with`, 1–10 tegelijk, doorgaan bij fouten) en de uitkomsten komen als lijst plus `…Samenvatting` in het doelveld.
+- **HTTP-stap:** de uitkomst bevat `status`, `headers` en `body`; "Overslaan als een {{veld}} in de URL ontbreekt" (`skipIfMissing`) voorkomt dat één ontbrekende ID de run stopt.
 - **Configuratie bewaken:** onbekende instellingen bij Velden instellen, Transformatie of Validatie (bijvoorbeeld geplakte data) geven een waarschuwing met de knop "Herstellen", en de engine geeft een duidelijke fout. CSV/XML lezen meldt een leeg, ontbrekend of onbruikbaar bronveld.
 - **Velden instellen en Transformatie:**
   - Er is een vinkje "Overige / niet-gemapte velden behouden". Bij nieuwe stappen staat het uit, dus de output bevat alleen de ingestelde velden. Bestaande stappen houden het oude gedrag.

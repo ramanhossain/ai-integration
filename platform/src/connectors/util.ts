@@ -63,7 +63,8 @@ export function missingVars(str: unknown, data: unknown): string[] {
 export function deepTpl(value: unknown, data: unknown, env = "dev"): unknown {
   if (typeof value === "string") {
     const whole = value.match(/^\{\{\s*([^}]+?)\s*\}\}$/);
-    if (whole && !whole[1].startsWith("$")) return getPath(data, whole[1]);
+    // Eén verwijzing behoudt het type (ook {{$steps.…}}/{{$trigger.…}}); alleen $now/$date/$env/$uuid worden tekst.
+    if (whole && !/^\$(now|date|env|uuid)$/.test(whole[1])) return getPath(data, whole[1]);
     return tpl(value, data, env);
   }
   if (Array.isArray(value)) return value.map((v) => deepTpl(v, data, env));

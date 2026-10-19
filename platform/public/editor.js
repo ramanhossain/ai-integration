@@ -1510,14 +1510,19 @@
           (["GET", "DELETE"].includes(c.method || "GET") ? "" : F.select("body", "Body", c.body || "payload", [["payload", "het hele bericht"], ["field", "één veld"], ["custom", "eigen JSON"], ["none", "geen body"]], "", true) +
             (c.body === "field" ? F.text("bodyField", "Veld als body", c.bodyField, "order") : "") + (c.body === "custom" ? F.json("bodyTemplate", "Body (JSON met templates)", c.bodyTemplate) : "")) +
           F.text("target", "Antwoord opslaan in veld", c.target, "response") + F.num("timeoutMs", "Timeout (ms)", c.timeoutMs ?? 30000) +
-          F.check("failOnError", "Fout bij HTTP-status ≥ 400", c.failOnError !== false);
+          F.check("failOnError", "Fout bij HTTP-status ≥ 400", c.failOnError !== false) +
+          F.check("skipIfMissing", "Overslaan als een {{veld}} in de URL ontbreekt", c.skipIfMissing, "Anders faalt de stap. Het doelveld krijgt dan <code>{ skipped: true }</code>.");
       case "code":
         return F.area("code", "JavaScript", c.code, "return { ...input, klaar: true };", "<code>input</code> (of <code>$json</code>) is het bericht; geef het nieuwe bericht terug. <code>console.log()</code> komt in <code>_logs</code>. Maximaal 2 seconden.", "codearea");
       case "delay":
         return F.num("ms", "Wachttijd (ms)", c.ms ?? 1000, "Maximaal 60000 ms.");
       case "subprocess":
         return F.select("process", "Proces", c.process, [["", "— kies een proces —"], ...(ctx.processes || []).map((n) => [n, n])], "Voert de actieve versie uit op dezelfde omgeving als dit proces.") +
-          F.text("inputField", "Invoer uit veld (optioneel)", c.inputField, "order", "Leeg = het hele bericht.") + F.text("target", "Uitkomst opslaan in veld", c.target, "subprocess");
+          F.text("forEach", "Voor elk element van lijst (optioneel)", c.forEach, "records", "Lus: het subproces draait per element van deze lijst; de uitkomsten komen als lijst in het doelveld (plus <code>…Samenvatting</code>).") +
+          (c.forEach ? F.rows("with", "Elk element krijgt ook", c.with, "veld", "waarde of {{veld}}", "=", "Bijvoorbeeld een token of basis-URL uit dit proces.") +
+            F.num("concurrency", "Tegelijk", c.concurrency ?? 1, "1–10 elementen tegelijk.") + F.check("continueOnError", "Doorgaan als een element faalt", c.continueOnError)
+            : F.text("inputField", "Invoer uit veld (optioneel)", c.inputField, "order", "Leeg = het hele bericht.")) +
+          F.text("target", "Uitkomst opslaan in veld", c.target, "subprocess");
       case "file":
       case "ftp": {
         const isFtp = step.type === "ftp";
@@ -1557,7 +1562,7 @@
           F.lines("params", "Parameters ($1, $2…)", c.params, "{{orderId}}", "Eén per regel. " + TPL_HINT) + F.check("single", "Alleen de eerste rij", c.single) + F.text("target", "Resultaat opslaan in veld", c.target, "rows");
       case "email":
         return F.cred("SMTP-server (koppeling)", c.credential, ["smtp"], ctx, "Zonder koppeling wordt de mail gesimuleerd (niet verstuurd).") +
-          F.text("to", "Aan", c.to, "{{customer.email}}") + F.text("cc", "Cc", c.cc) + F.text("subject", "Onderwerp", c.subject, "Order {{orderId}} ontvangen") +
+          F.text("from", "Van (optioneel)", c.from, "Bedrijf <no-reply@bedrijf.nl>", "Leeg = de afzender van de koppeling.") + F.text("to", "Aan", c.to, "{{customer.email}}") + F.text("cc", "Cc", c.cc) + F.text("subject", "Onderwerp", c.subject, "Order {{orderId}} ontvangen") +
           F.area("text", "Tekst", c.text, "Beste klant, …", TPL_HINT) + F.area("html", "HTML (optioneel)", c.html);
       case "notify":
         return F.select("kind", "Kanaal", c.kind || "teams", [["teams", "Microsoft Teams"], ["slack", "Slack"]]) +
@@ -1994,7 +1999,7 @@
     // ---- verwijzingen naar invoervelden: slepen, klikken, preview
     const isField = (el) => el && el.closest && el.closest("#ndv-form") && (el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["checkbox", "radio"].includes(el.type))) && el.id !== "s-id";
     // Velden die een veldpad verwachten (geen tekst-template): daar het kale pad invoegen.
-    const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy", "target"]);
+    const PATH_KEYS = new Set(["required", "key", "when", "field", "bodyField", "inputField", "contentField", "sortBy", "target", "forEach"]);
     function insertRef(el, path, atEnd) {
       const v = el.value;
       const kv = el.closest && el.closest(".kvr");

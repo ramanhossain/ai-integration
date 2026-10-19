@@ -23,7 +23,7 @@ export async function sendMail(env: EnvName, credentialName: string | undefined,
   if (!credentialName) {
     // Zonder koppeling: gesimuleerd (handig op DEV). De mail wordt niet verstuurd.
     const t = nodemailer.createTransport({ jsonTransport: true });
-    const info = await t.sendMail({ from: mail.from || "aip@localhost", ...mail });
+    const info = await t.sendMail({ ...mail, from: mail.from || "aip@localhost" });
     return { simulated: true, messageId: info.messageId, preview: JSON.parse(String(info.message)) };
   }
   const { values } = credentials.resolve(credentialName, env);
@@ -34,7 +34,7 @@ export async function sendMail(env: EnvName, credentialName: string | undefined,
     secure: values.secure === "true",
     auth: values.user ? { user: values.user, pass: values.password } : undefined
   });
-  const info = await t.sendMail({ from: mail.from || values.from || values.user, ...mail });
+  const info = await t.sendMail({ ...mail, from: mail.from || values.from || values.user }); // lege "from" overschrijft de koppeling niet
   return { simulated: false, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected };
 }
 
