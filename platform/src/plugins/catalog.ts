@@ -256,6 +256,7 @@ const ROWS: Row[] = [
   ["tapfiliate", "Tapfiliate", "Marketing", "Affiliates en programma's", "tapfiliate.com"],
   ["telegram", "Telegram", "Communicatie", "Berichten en bestanden via een bot", "telegram.org", true],
   ["thehive", "TheHive", "Beveiliging", "Cases, alerts en observables", "thehive-project.org", true],
+  ["postgres", "PostgreSQL", "Data & opslag", "SQL op PostgreSQL", "postgresql.org"],
   ["timescaledb", "TimescaleDB", "Data & opslag", "Tijdreeksen in Postgres", "timescale.com"],
   ["todoist", "Todoist", "Productiviteit", "Taken en projecten", "todoist.com"],
   ["toggl", "Toggl Track", "Productiviteit", "Tijdregistratie (trigger)", "toggl.com", true],
@@ -290,6 +291,16 @@ const ROWS: Row[] = [
   ["zendesk", "Zendesk", "Klantenservice", "Tickets, gebruikers en organisaties", "zendesk.com", true],
   ["zoho-crm", "Zoho CRM", "Verkoop & CRM", "Leads, contacten, accounts en deals", "zoho.com/crm"],
   ["zoom", "Zoom", "Communicatie", "Vergaderingen plannen en beheren", "zoom.us"],
+  ["confluence", "Confluence", "Productiviteit", "Pagina's, spaces en reacties", "atlassian.com/software/confluence"],
+  ["exact-online", "Exact Online", "Financiën", "Relaties, verkooporders en facturen", "exact.com/nl"],
+  ["haal-centraal-brp", "Haal Centraal BRP Personen", "Overheid", "Personen bevragen in de BRP", "brp-api.github.io/Haal-Centraal-BRP-bevragen"],
+  ["kvk", "KVK Handelsregister", "Overheid", "Bedrijven zoeken en basisprofielen", "developers.kvk.nl"],
+  ["microsoft-dataverse", "Microsoft Dataverse", "Data & opslag", "Rijen in Dataverse-tabellen", "learn.microsoft.com/power-apps"],
+  ["open-notificaties", "Notificaties API (ZGW)", "Overheid", "Kanalen, abonnementen en notificaties", "vng-realisatie.github.io/gemma-zaken"],
+  ["zgw-besluiten", "ZGW Besluiten API", "Overheid", "Besluiten", "vng-realisatie.github.io/gemma-zaken"],
+  ["zgw-catalogi", "ZGW Catalogi API", "Overheid", "Zaaktypen en statustypen", "vng-realisatie.github.io/gemma-zaken"],
+  ["zgw-documenten", "ZGW Documenten API", "Overheid", "Documenten (informatieobjecten)", "vng-realisatie.github.io/gemma-zaken"],
+  ["zgw-zaken", "ZGW Zaken API", "Overheid", "Zaken, statussen en rollen", "vng-realisatie.github.io/gemma-zaken"],
   ["zulip", "Zulip", "Communicatie", "Berichten en streams", "zulip.com"]
 ];
 

@@ -19,7 +19,7 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "type": "string", "enum": ["manual", "webhook", "api", "ebms", "as4", "schedule", "queue", "file", "ftp", "event"] },
+        "type": { "type": "string", "enum": ["manual", "webhook", "api", "ebms", "as4", "schedule", "queue", "file", "ftp", "event", "poll", "error"] },
         "source": { "type": "string" },
         "cron": { "type": "string" }
       },
@@ -38,7 +38,7 @@
           "id": { "type": "string" },
           "type": {
             "type": "string",
-            "enum": ["validate", "transform", "duplicate-check", "enrich", "csv", "xml", "call", "code", "delay", "subprocess", "file", "ftp", "queue-publish", "queue-get", "datatable", "sql", "email", "notify", "mcp-tool", "connector", "branch", "custom", "end"]
+            "enum": ["validate", "transform", "duplicate-check", "enrich", "csv", "xml", "call", "code", "delay", "subprocess", "file", "ftp", "queue-publish", "queue-get", "datatable", "sql", "email", "notify", "mcp-tool", "connector", "branch", "custom", "end", "list", "datetime", "crypto", "jwt", "compression", "xslt", "soap", "switch", "stop"]
           },
           "name": { "type": "string", "description": "Weergavenaam op het canvas." },
           "config": { "type": "object", "additionalProperties": true },
@@ -61,7 +61,7 @@
         "properties": {
           "from": { "type": "string" },
           "to": { "type": "string" },
-          "port": { "type": "string", "description": "Uitgang van de bron: 'out' (default) of 'true'/'false' bij een beslissing." }
+          "port": { "type": "string", "description": "Uitgang van de bron: 'out' (default), 'true'/'false' bij een beslissing, of de regelnaam/'default' bij een switch." }
         },
         "additionalProperties": false
       }

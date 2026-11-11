@@ -2,7 +2,7 @@ import { withRefs } from "../connectors/util";
 import { randomUUID } from "node:crypto";
 import type { Integration } from "../domain/types";
 import type { EnvName } from "../domain/environments";
-import { getNode, RETRYABLE, type NodeContext, type StepDef } from "./nodes";
+import { getNode, RETRYABLE, portOf, type NodeContext, type StepDef } from "./nodes";
 import { deployments } from "../domain/deployments";
 import { persistence } from "../store";
 import { bus } from "../events/bus";
@@ -123,7 +123,7 @@ class Engine {
     const byId = new Map((def.steps as StepDef[]).map((s) => [s.id, s]));
     const conns = effectiveConnections(def);
     const outgoing = (from: string, port: string) =>
-      conns.filter((c) => c.from === from && (c.port ?? (byId.get(from)?.type === "branch" ? "true" : "out")) === port);
+      conns.filter((c) => c.from === from && (c.port ?? (byId.get(from)?.type === "branch" ? "true" : byId.get(from)?.type === "switch" ? "default" : "out")) === port);
     // Stapel (depth-first); in omgekeerde volgorde pushen zodat de eerste flow eerst loopt.
     const stack: Array<{ id: string; payload: Record<string, unknown> }> = outgoing("start", "out")
       .reverse()
@@ -146,7 +146,7 @@ class Engine {
       if (flags.disabled) {
         steps.push({ id: step.id, type: step.type, status: "skipped", ms: 0, attempts: 0, input: clip(inPayload), output: clip(inPayload) });
         if (step.type === "end") continue;
-        const port = step.type === "branch" ? "true" : "out";
+        const port = step.type === "branch" ? "true" : step.type === "switch" ? "default" : "out";
         for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload: inPayload });
         continue;
       }
@@ -154,8 +154,8 @@ class Engine {
       if (flags.pinData && !def.version) {
         payload = { ...flags.pinData };
         outputs[step.id] = payload;
-        const port = step.type === "branch" ? ((payload._branch as { taken?: boolean })?.taken === false ? "false" : "true") : "out";
-        steps.push({ id: step.id, type: step.type, status: "ok", ms: 0, attempts: 0, port: step.type === "branch" ? port : undefined, input: clip(inPayload), output: clip(payload) });
+        const port = portOf(step.type, payload);
+        steps.push({ id: step.id, type: step.type, status: "ok", ms: 0, attempts: 0, port: port !== "out" ? port : undefined, input: clip(inPayload), output: clip(payload) });
         if (step.type === "end") continue;
         for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload });
         continue;
@@ -166,8 +166,8 @@ class Engine {
         const { out, tries } = await this.runStep(() => getNode(step.type)(withRefs(inPayload, { steps: outputs, trigger: input }), step, ctx), retries, backoff);
         payload = { ...out }; // zonder de verwijzingen
         outputs[step.id] = payload;
-        const port = step.type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : "out";
-        steps.push({ id: step.id, type: step.type, status: "ok", ms: Date.now() - t0, attempts: tries, port: step.type === "branch" ? port : undefined, input: clip(inPayload), output: clip(payload) });
+        const port = step.type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : portOf(step.type, out);
+        steps.push({ id: step.id, type: step.type, status: "ok", ms: Date.now() - t0, attempts: tries, port: port !== "out" ? port : undefined, input: clip(inPayload), output: clip(payload) });
         if (step.type === "end") continue;
         for (const c of outgoing(step.id, port).reverse()) stack.push({ id: c.to, payload });
       } catch (err) {
@@ -218,7 +218,7 @@ class Engine {
     const t0 = Date.now();
     try {
       const out = { ...(await getNode(type)(withRefs(input, refs), { id: "step", type, config }, this.context("editor", env, 0))) };
-      const port = type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : undefined;
+      const port = type === "branch" ? ((out._branch as { taken?: boolean })?.taken ? "true" : "false") : type === "switch" ? portOf(type, out) : undefined;
       return { ok: true, ms: Date.now() - t0, output: out, port };
     } catch (err) {
       return { ok: false, ms: Date.now() - t0, error: (err as Error).message };

@@ -23,7 +23,7 @@ De belangrijkste onderdelen:
   - Er is een keuzelijst met versies en een BPMN-vergelijking per stap.
   - Je kunt een versie terugzetten.
   - Er worden maximaal 100 versies bewaard, standaard 50. Opschonen kan voor alle processen tegelijk.
-- **Plugins (connectors):** ongeveer 290 diensten met samen ruim 1500 operaties.
+- **Plugins (connectors):** ongeveer 300 diensten met samen ruim 1600 operaties, waaronder Nederlandse overheid (ZGW Zaken/Documenten/Catalogi/Besluiten, Notificaties API, Haal Centraal BRP, KVK) en Exact Online.
   - De meeste zijn REST-plugins, aangevuld met drivers voor databases, brokers, LDAP, IMAP, SSH en Odoo.
   - Er is OAuth2 met een knop "Verbinden".
   - Elke plugin toont het logo van de organisatie erachter.
@@ -160,9 +160,10 @@ npm run seed         # demodata in een draaiende server
 | `npm run test:ebms` / `test:as4` | ebMS/AS4 (andere sessie) |
 | `AIP_URL=http://localhost:3099 npm run test:integration` | tegen een draaiende server met `AIP_AUTH=off` |
 | `npm run typecheck` | TypeScript |
+| `AIP_URL=http://localhost:3099 npm run test:scenarios` | 22 end-to-end integraties naar echte systemen (SMTP, PostgreSQL, MongoDB, MQTT, FTP, mock-ERP/ZGW/SOAP, publieke API's); vereist `scripts/test-systems.mjs` en een testserver met `AIP_POLL_MIN_SECONDS=1` |
 
 - Controleer de GUI-bestanden met `node --check public/*.js`.
-- De integratietest verwacht precies het aantal triggertypes in `TRIGGER_CATALOG` (nu **9**, inclusief ebMS en AS4).
+- De integratietest verwacht precies het aantal triggertypes in `TRIGGER_CATALOG` (nu **11**, inclusief ebMS, AS4, polling en fout).
 
 ---
 
@@ -291,7 +292,14 @@ npm run seed         # demodata in een draaiende server
 
 ---
 
-## 11. Bekende open punten en ideeën
+## 11. Toegevoegd op 11 november 2026
 
-- Er is nog geen lus- of split-stap.
+- **Stappen:** Lijst bewerken (`list`: sorteren, filteren, limit, ontdubbelen, plukken, samenvatten, platslaan, join, vergelijken, opdelen), Datum & tijd, Crypto & codering (hash, HMAC maken/controleren, UUID, Base64), JWT (HS/RS/ES), Compressie, XSLT/XPath (`xslt-processor`, externe bronnen uit), SOAP-aanroep (Fault = fout), Switch (meerdere uitgangen; poort = regelnaam of `default`), Stoppen met fout. Validatie kan een JSON Schema gebruiken.
+- **Triggers:** `poll` (plugin-operatie periodiek, per nieuw item op id; eerste keer alleen onthouden; status in collectie `trigger-poll`) en `error` (start als een ander proces op dezelfde omgeving faalt; nooit op zichzelf of andere foutprocessen).
+- **Plugins:** `postgres`, `confluence`, `microsoft-dataverse`, `exact-online`, `kvk`, `haal-centraal-brp`, `zgw-zaken`, `zgw-documenten`, `zgw-catalogi`, `zgw-besluiten`, `open-notificaties` (signer `zgw-jwt`).
+- Nieuwe staptypes moeten ook in `schemas/integration.schema.json` (enum), `STEP_CATALOG`, `editor.js` (TYPES/ICONS/formHtml) en `i18n/en.js`.
+- Bewust niet nagebouwd: commando uitvoeren op de server (veiligheid), Git-operaties.
+
+## 12. Bekende open punten en ideeën
+
 - Odoo-netwerkfouten tonen nog geen foutcode, zoals ECONNREFUSED.

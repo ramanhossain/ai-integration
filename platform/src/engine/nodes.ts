@@ -12,6 +12,8 @@ import { authHeaders, sendMail, sqlQuery, notify, mcpCall } from "../connectors/
 import { plugins } from "../plugins/registry";
 import { executePlugin } from "../plugins/runtime";
 import { safeFetch } from "../net/egress";
+import { EXTRA_NODES } from "./extraNodes";
+import Ajv from "ajv";
 
 export interface NodeContext {
   integration: string;
@@ -31,7 +33,15 @@ type Payload = Record<string, unknown>;
 export type NodeHandler = (payload: Payload, step: StepDef, ctx: NodeContext) => Promise<Payload>;
 
 // Stappen met I/O naar buiten krijgen de retry-instellingen van het proces.
-export const RETRYABLE = new Set(["call", "ftp", "sql", "email", "notify", "mcp-tool", "queue-publish", "connector"]);
+export const RETRYABLE = new Set(["call", "ftp", "sql", "email", "notify", "mcp-tool", "queue-publish", "connector", "soap"]);
+
+// Gekozen uitgang van een stap: beslissing (ja/nee), switch (regelnaam of "default"), anders "out".
+export function portOf(type: string, out: Record<string, unknown>): string {
+  if (type === "branch") return (out._branch as { taken?: boolean })?.taken === false ? "false" : "true";
+  if (type === "switch") return String((out._switch as { port?: string })?.port ?? "default");
+  return "out";
+}
+const ajv = new Ajv({ allErrors: true, strict: false });
 
 function serialize(value: unknown, format: string): string {
   if (format === "csv") return csvGenerate(value);
@@ -105,6 +115,14 @@ const nodes: Record<string, NodeHandler> = {
     const required = ((step.config?.required as string[]) ?? []).map(asPath).filter(Boolean);
     const missing = required.filter((f) => { const v = getPath(payload, f); return v === undefined || v === null || v === ""; });
     if (missing.length) throw new Error(`Validatie faalde: ontbrekende velden ${missing.join(", ")}`);
+    // Optioneel: JSON Schema (draft-07/2019) op het bericht of een veld.
+    const schema = step.config?.schema;
+    if (schema && typeof schema === "object" && Object.keys(schema).length) {
+      let check;
+      try { check = ajv.compile(schema as object); } catch (err) { throw Object.assign(new Error(`Validatie: ongeldig JSON Schema: ${(err as Error).message}`), { noRetry: true }); }
+      const subject = step.config?.schemaField ? getPath(payload, asPath(step.config.schemaField)) : payload;
+      if (!check(subject)) throw new Error(`Validatie faalde: ${(check.errors ?? []).slice(0, 10).map((e) => `${e.instancePath || "/"} ${e.message}`).join("; ")}`);
+    }
     return payload;
   },
 
@@ -371,7 +389,8 @@ const nodes: Record<string, NodeHandler> = {
     return { ...payload, _branch: { taken } };
   },
   custom: async (payload) => payload,
-  end: async (payload) => payload
+  end: async (payload) => payload,
+  ...EXTRA_NODES
 };
 
 // Stappen die opslag van het portaal gebruiken (datatabellen, queues). Op een externe
@@ -383,7 +402,7 @@ export function setStepDelegate(fn: StepDelegate | null): void { delegate = fn; 
 
 // Instellingen die een veldpad of naam zijn (geen tekst-template): "{{orderId}}" telt als "orderId".
 // Zo werkt een veld dat in de editor is ingesleept in elke stap, ook in oudere definities.
-const PATH_CONFIG = ["field", "target", "bodyField", "inputField", "contentField", "key", "when", "sortBy", "forEach"];
+const PATH_CONFIG = ["field", "target", "bodyField", "inputField", "contentField", "key", "when", "sortBy", "forEach", "with", "otherKey", "into", "tokenField", "otherField", "schemaField"];
 function normalizeStep(step: StepDef): StepDef {
   const c = step.config;
   if (!c || typeof c !== "object") return step;
@@ -403,7 +422,7 @@ export function getNode(type: string): NodeHandler {
 
 // Machine-leesbare catalogus van staptypes (voor API, MCP en externe tooling).
 export const STEP_CATALOG = [
-  { type: "validate", group: "Data", label: "Validatie", description: "Controleer verplichte velden", config: { required: "string[] — veldpaden" } },
+  { type: "validate", group: "Data", label: "Validatie", description: "Controleer verplichte velden en optioneel een JSON Schema", config: { required: "string[] — veldpaden", schema: "optioneel JSON Schema", schemaField: "optioneel: veld dat aan het schema moet voldoen (leeg = hele bericht)" } },
   { type: "transform", group: "Data", label: "Transformatie", description: "Velden mappen", config: { mapping: "{ doelveld: 'bron.pad' | 'tekst {{veld}}' }", keepOthers: "boolean (default true)" } },
   { type: "duplicate-check", group: "Data", label: "Duplicaatcheck", description: "Dubbele berichten tegenhouden", config: { key: "veldpad" } },
   { type: "enrich", group: "Data", label: "Velden instellen", description: "Velden toevoegen/overschrijven", config: { set: "{ veld: waarde | '{{template}}' }", keepOthers: "boolean (default true; false = alleen de ingestelde velden)" } },
@@ -423,6 +442,15 @@ export const STEP_CATALOG = [
   { type: "notify", group: "Communicatie", label: "Teams / Slack", description: "Bericht naar een Teams- of Slack-webhook", retryable: true, config: { kind: "teams | slack", credential: "webhook", url: "optioneel", title: "template", text: "template" } },
   { type: "connector", group: "Plugins", label: "Connector (plugin)", description: "Een operatie van een plugin uitvoeren (Google, Microsoft, Slack, Salesforce, Stripe, …); zie /api/v1/plugins", retryable: true, config: { plugin: "plugin-id", operation: "operatie-id", credential: "koppeling (type plugin)", params: "object met parameters ({{templates}})", target: "doelveld" } },
   { type: "mcp-tool", group: "AI & MCP", label: "MCP-tool", description: "Tool aanroepen op een externe MCP-server", retryable: true, config: { credential: "mcp", url: "optioneel", tool: "toolnaam", arguments: "object met templates", target: "doelveld" } },
+  { type: "list", group: "Data", label: "Lijst bewerken", description: "Sorteren, beperken, ontdubbelen, filteren, plukken, samenvatten, platslaan, koppelen (join), vergelijken, opdelen", config: { operation: "sort | limit | dedupe | filter | pluck | summarize | flatten | join | compare | chunk | reverse | count", field: "pad naar de lijst", target: "doelveld (default: zelfde veld)", by: "sort: veldpaden (komma)", desc: "boolean", count: "limit/chunk: aantal", from: "limit: start | end", key: "dedupe/pluck/flatten/join/compare: veldpad", conditions: "filter: [{ field, op, value }]", match: "filter: all | any", groupBy: "summarize: veldpaden", metrics: "summarize: [{ field, fn: count|sum|avg|min|max|concat|first|last|unique|list, as }]", with: "join/compare: pad naar de tweede lijst", otherKey: "sleutel in de tweede lijst", mode: "join: left | inner", into: "join: veld voor de gekoppelde rij (leeg = samenvoegen)" } },
+  { type: "datetime", group: "Data", label: "Datum & tijd", description: "Datum opmaken, rekenen (optellen/aftrekken), verschil, begin/einde van een periode, onderdelen", config: { operation: "now | format | add | subtract | diff | startOf | endOf | parts", value: "datum of {{veld}} (leeg = nu)", field: "of: veldpad", inputFormat: "bv. DD-MM-YYYY", format: "ISO | unix | unixMs | YYYY-MM-DD HH:mm:ss", timezone: "default Europe/Amsterdam", amount: "aantal", unit: "seconds|minutes|hours|days|weeks|months|years", other: "diff: tweede datum", target: "doelveld" } },
+  { type: "crypto", group: "Data", label: "Crypto & codering", description: "Hash, HMAC (ondertekenen/controleren), UUID, willekeurige waarde, Base64, URL- en hex-codering", config: { operation: "hash | hmac | hmacVerify | uuid | random | base64Encode | base64Decode | urlEncode | urlDecode | hexEncode | hexDecode", value: "template", field: "of: veldpad", algorithm: "md5|sha1|sha256|sha512", encoding: "hex | base64 | base64url", credential: "generic-koppeling met 'secret'", secret: "of: sleutel", signature: "hmacVerify: te controleren handtekening", target: "doelveld" } },
+  { type: "jwt", group: "Data", label: "JWT", description: "JSON Web Token maken, controleren of lezen (HS256/384/512, RS256/384/512, ES256/384)", config: { operation: "sign | verify | decode", algorithm: "HS256 …", credential: "generic-koppeling met secret / privateKey / publicKey", claims: "object (sign)", expiresIn: "seconden", token: "template (verify/decode)", tokenField: "of: veldpad", issuer: "verwachte iss", audience: "verwachte aud", target: "doelveld" } },
+  { type: "compression", group: "Data", label: "Compressie", description: "Gzip, deflate of brotli inpakken (Base64-uitvoer) en uitpakken", config: { operation: "gzip | gunzip | deflate | inflate | brotli | unbrotli", field: "bronveld", target: "doelveld", parseJson: "uitpakken: JSON lezen" } },
+  { type: "xslt", group: "Data", label: "XSLT / XPath", description: "XML transformeren met een XSLT 1.0-stylesheet, of waarden uitlezen met XPath", config: { operation: "transform | xpath", field: "bronveld (XML-tekst of object)", stylesheet: "XSLT", parameters: "{ naam: waarde | '{{veld}}' }", expressions: "xpath: { doelveld: 'xpath-expressie' }", all: "xpath: alle treffers als lijst", parse: "transform: uitvoer ook als object", target: "doelveld" } },
+  { type: "soap", group: "Kern", label: "SOAP-aanroep", description: "SOAP 1.1/1.2-webservice aanroepen: envelope opbouwen, SOAPAction, Fault wordt een fout", retryable: true, config: { url: "endpoint", action: "SOAPAction", version: "1.1 | 1.2", body: "XML met {{templates}} of object", bodyField: "of: veld met XML/object", header: "optionele SOAP-header (XML)", credential: "http-basic | http-bearer | api-key", target: "doelveld (default soap); bevat status en body" } },
+  { type: "switch", group: "Flow", label: "Switch (meerdere paden)", description: "Meerweg-beslissing: de eerste regel die klopt bepaalt de uitgang, anders 'default'", config: { field: "standaard veldpad", rules: "[{ name, field?, op: equals|notEquals|gt|gte|lt|lte|contains|startsWith|endsWith|regex|in|exists|empty, value }]", failIfNoMatch: "boolean" } },
+  { type: "stop", group: "Flow", label: "Stoppen met fout", description: "Proces stoppen met een eigen foutmelding (geen retry)", config: { message: "template", code: "optionele foutcode" } },
   { type: "custom", group: "Flow", label: "Doorgeven", description: "Bericht ongewijzigd doorgeven (placeholder of samenvoegpunt)", config: {} },
   { type: "branch", group: "Flow", label: "Beslissing", description: "Exclusieve gateway: ja/nee-pad", config: { when: "veldpad", op: "truthy | equals | notEquals | gt | lt | contains | exists", value: "vergelijkingswaarde" } },
   { type: "end", group: "Flow", label: "Einde", description: "Eindevent", config: {} }
@@ -437,5 +465,7 @@ export const TRIGGER_CATALOG = [
   { type: "schedule", label: "Schema (cron)", description: "Periodiek starten", config: { cron: "5-velden cron, bv. */5 * * * *", everySeconds: "alternatief: interval in seconden" } },
   { type: "queue", label: "Queue", description: "Start per bericht op een queue van dezelfde omgeving", config: { queue: "naam", concurrency: "aantal tegelijk" } },
   { type: "file", label: "Map (lokaal)", description: "Nieuwe bestanden in een map van de omgeving", config: { dir: "map", pattern: "glob", intervalSeconds: "number", format: "text | json | csv | xml", after: "move | delete", archiveDir: "map" } },
+  { type: "poll", label: "Plugin: nieuwe items (polling)", description: "Periodiek een plugin-operatie uitvoeren en per nieuw item (op id) starten, bv. nieuwe e-mails, issues, orders of feeditems", config: { plugin: "plugin-id", operation: "operatie-id (een lijst-operatie)", credential: "koppeling", params: "object", idField: "veldpad met het unieke id (default id)", itemsPath: "optioneel pad naar de lijst in het antwoord", intervalSeconds: "minimaal 10 (default 60)", includeExisting: "boolean: bij de eerste keer ook bestaande items verwerken", maxPerPoll: "default 50" } },
+  { type: "error", label: "Fout in ander proces", description: "Start wanneer een ander proces op dezelfde omgeving faalt (foutafhandeling, alarmering)", config: { integrations: "optioneel: alleen deze processen (komma)" } },
   { type: "ftp", label: "FTP / SFTP", description: "Nieuwe bestanden op een FTP/FTPS/SFTP-server", config: { credential: "ftp | ftps | sftp", dir: "map", pattern: "glob", intervalSeconds: "number", format: "text | json | csv | xml", after: "move | delete", archiveDir: "map" } }
 ];

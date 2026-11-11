@@ -14,9 +14,10 @@ import { CONTENT } from "./defs/content";
 import { OPS } from "./defs/ops";
 import { AS4 } from "./defs/as4";
 import { EBMS } from "./defs/ebms";
+import { NL } from "./defs/nl";
 
 // Register van alle plugins: de catalogus (overzicht) plus de uitgewerkte definities.
-const DEFS: PluginDef[] = [...GOOGLE, ...MICROSOFT, ...COMMUNICATION, ...WORK, ...CRM, ...COMMERCE, ...MORE, ...AWS, ...DATA, ...SALES, ...CONTENT, ...OPS, ...EBMS, ...AS4];
+const DEFS: PluginDef[] = [...GOOGLE, ...MICROSOFT, ...COMMUNICATION, ...WORK, ...CRM, ...COMMERCE, ...MORE, ...AWS, ...DATA, ...SALES, ...CONTENT, ...OPS, ...EBMS, ...AS4, ...NL];
 
 const byId = new Map<string, PluginDef>();
 for (const d of DEFS) {

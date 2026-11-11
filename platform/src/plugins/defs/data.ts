@@ -30,6 +30,8 @@ export const DATA: PluginDef[] = [
   { id: "oracle-sql", name: "Oracle Database", category: "Data & opslag", description: "SQL op Oracle (thin-modus, geen Oracle Client nodig)", color: "#c74634", website: "https://oracle.com/database", docs: "https://node-oracledb.readthedocs.io/",
     baseUrl: DRIVER, auth: conn([f("host", "Host"), f("port", "Poort", { default: "1521" }), f("database", "Servicenaam", { placeholder: "XEPDB1" }), f("connectString", "Of: connect string", { placeholder: "host:1521/service (overschrijft host/poort/service)" }), f("user", "Gebruiker"), secret("password", "Wachtwoord")]),
     test: "tables", operations: sqlOps("oracle", ":1") },
+  { id: "postgres", name: "PostgreSQL", category: "Data & opslag", description: "SQL op PostgreSQL (ook Supabase, Neon, Azure/AWS RDS)", color: "#336791", website: "https://postgresql.org", docs: "https://www.postgresql.org/docs/",
+    baseUrl: DRIVER, auth: conn(sqlFields("5432")), test: "tables", operations: sqlOps("postgres", "$1") },
   { id: "timescaledb", name: "TimescaleDB", category: "Data & opslag", description: "Tijdreeksen in Postgres (TimescaleDB, ook gewone PostgreSQL)", color: "#fdb515", website: "https://timescale.com", docs: "https://docs.timescale.com/",
     baseUrl: DRIVER, auth: conn(sqlFields("5432")), test: "tables",
     operations: [...sqlOps("postgres", "$1"),

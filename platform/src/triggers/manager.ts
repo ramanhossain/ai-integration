@@ -15,6 +15,9 @@ import { audit } from "../audit/auditLog";
 import { parseCron } from "./cron";
 import { scoped, orgPathPrefix } from "../tenancy/context";
 import { apim } from "../apim/apim";
+import { plugins } from "../plugins/registry";
+import { executePlugin } from "../plugins/runtime";
+import { getPath } from "../connectors/util";
 
 // Triggers draaien per omgeving waar een proces gedeployed is (een
 // proces op PROD reageert op de PROD-trigger met de PROD-koppelingen). De manager
@@ -53,7 +56,7 @@ interface ActiveTrigger {
   stop: () => void;
 }
 
-const RUNTIME_TYPES = new Set(["schedule", "queue", "file", "ftp"]);
+const RUNTIME_TYPES = new Set(["schedule", "queue", "file", "ftp", "error", "poll"]);
 const k = (env: string, name: string) => `${env}:${name}`;
 
 function parseByFormat(text: string, format: unknown): unknown {
@@ -195,6 +198,75 @@ class TriggerManager {
           t.lastError = (err as Error).message;
         } finally {
           await fs?.close().catch(() => undefined);
+          busy = false;
+        }
+      };
+      const h = setInterval(() => void tick(), interval);
+      setTimeout(() => void tick(), 500);
+      t.nextAt = new Date(Date.now() + 500).toISOString();
+      t.stop = () => clearInterval(h);
+    }
+    // Foutafhandeling: start wanneer een ander proces op dezelfde omgeving faalt.
+    if (trig.type === "error") {
+      const only = (Array.isArray(trig.integrations) ? trig.integrations : String(trig.integrations || "").split(",")).map((x) => String(x).trim()).filter(Boolean);
+      t.stop = bus.onEvent((e) => {
+        if (e.type !== "run.finished" || e.data.status !== "error" || e.data.env !== env) return;
+        const failed = String(e.data.integration);
+        // nooit op zichzelf of op andere foutprocessen reageren (geen lussen)
+        if (failed === def.integration || e.data.triggeredBy === "error" || e.data.triggeredBy === "test") return;
+        if (only.length && !only.includes(failed)) return;
+        const run = engine.get(String(e.data.id));
+        const step = run?.steps.find((s) => s.status === "failed");
+        void this.fire(t, def, {
+          error: { integration: failed, runId: e.data.id, message: run?.error, step: step ? { id: step.id, type: step.type, error: step.error, input: step.input } : undefined, triggeredBy: e.data.triggeredBy, deadLettered: e.data.deadLettered, at: run?.finishedAt },
+          _trigger: meta({ integration: failed, runId: e.data.id })
+        });
+      });
+    }
+
+    // Polling op een plugin-operatie: start per nieuw item (op id), bv. nieuwe e-mails, issues of orders.
+    if (trig.type === "poll") {
+      const plugin = plugins.get(String(trig.plugin || ""));
+      if (!plugin) throw new Error(`Polling-trigger: plugin '${trig.plugin}' bestaat niet`);
+      const operation = String(trig.operation || "");
+      if (!plugin.operations.some((o) => o.id === operation)) throw new Error(`Polling-trigger: operatie '${operation}' bestaat niet in ${plugin.name}`);
+      const interval = Math.max(Number(process.env.AIP_POLL_MIN_SECONDS || 10), Number(trig.intervalSeconds || 60)) * 1000;
+      const idField = String(trig.idField || "id");
+      const stateKey = `${key}|${plugin.id}|${operation}`;
+      let seen: Set<string> | null = null;
+      let busy = false;
+      const tick = async () => {
+        if (busy) return;
+        busy = true;
+        t.nextAt = new Date(Date.now() + interval).toISOString();
+        try {
+          let first = false;
+          if (!seen) {
+            const saved = (await persistence.loadAll("trigger-poll")).find((x) => x.id === stateKey)?.doc as { seen?: string[] } | undefined;
+            first = !saved;
+            seen = new Set(saved?.seen ?? []);
+          }
+          const r = await executePlugin({ plugin, operation, credential: trig.credential ? String(trig.credential) : undefined, params: (trig.params as Record<string, unknown>) ?? {}, env });
+          const data = trig.itemsPath ? getPath(r.data, String(trig.itemsPath)) : r.data;
+          const items = Array.isArray(data) ? data : data == null ? [] : [data];
+          const fresh = items.filter((it) => { const id = String(getPath(it, idField) ?? JSON.stringify(it)); return !seen!.has(id); });
+          for (const it of fresh) seen.add(String(getPath(it, idField) ?? JSON.stringify(it)));
+          // Eerste keer: bestaande items alleen onthouden (tenzij "ook bestaande items verwerken").
+          if (!first || trig.includeExisting) {
+            for (const it of fresh.slice(0, Math.max(1, Number(trig.maxPerPoll || 50)))) {
+              const body = it && typeof it === "object" && !Array.isArray(it) ? (it as Record<string, unknown>) : { item: it };
+              await this.fire(t, def, { ...body, _trigger: meta({ plugin: plugin.id, operation, id: getPath(it, idField) }) });
+            }
+          }
+          // Begrensd geheugen: alleen de laatste 5000 id's bewaren.
+          const keep = [...seen].slice(-5000);
+          seen = new Set(keep);
+          persistence.put("trigger-poll", stateKey, { seen: keep, at: new Date().toISOString() });
+          t.lastError = undefined;
+        } catch (err) {
+          t.errors++;
+          t.lastError = (err as Error).message;
+        } finally {
           busy = false;
         }
       };

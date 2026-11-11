@@ -37,6 +37,17 @@
     custom: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     branch: '<path d="M7 7l10 10M17 7L7 17"/>',
     end: '<rect x="8" y="8" width="8" height="8" rx="1" fill="currentColor" stroke="none"/>',
+    list: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+    datetime: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    crypto: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    jwt: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/>',
+    compression: '<path d="M12 3v7M9 7l3 3 3-3M12 21v-7M9 17l3-3 3 3M4 12h16"/>',
+    xslt: '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/><path d="M10 12h4"/>',
+    soap: '<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/><path d="M15 15h4"/>',
+    switch: '<path d="M4 12h6M10 12l8-6M10 12h8M10 12l8 6"/>',
+    stop: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+    "t-poll": '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v4h-4"/>',
+    "t-error": '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
     // BPMN-taakmarkeringen
     "m-service": '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>',
     "m-script": '<path d="M7 4h11c-2 2-2 4 0 8s2 6 0 8H6c2-2 2-4 0-8s-2-6 1-8z"/><path d="M9.5 8h5.5M9.5 12h6M9.5 16h5"/>',
@@ -77,6 +88,15 @@
     notify: { label: "Teams / Slack", group: "Communicatie", color: "#4f46e5", desc: "Bericht naar een Teams- of Slack-kanaal", def: { kind: "teams", credential: "", title: "", text: "" } },
     connector: { label: "Connector", group: "Plugins", color: "#0e7490", desc: "Actie in een externe dienst: Google, Microsoft, Slack, Salesforce, Stripe, …", def: { plugin: "", operation: "", credential: "", params: {}, target: "" } },
     "mcp-tool": { label: "MCP-tool", group: "AI & MCP", color: "#a21caf", desc: "Tool aanroepen op een externe MCP-server", def: { credential: "", url: "", tool: "", arguments: {}, target: "mcp" } },
+    list: { label: "Lijst bewerken", group: "Data", color: "#0d9488", desc: "Sorteren, filteren, beperken, ontdubbelen, samenvatten, koppelen of vergelijken", def: { operation: "sort", field: "items", by: "", target: "" } },
+    datetime: { label: "Datum & tijd", group: "Data", color: "#0369a1", desc: "Datum opmaken, optellen/aftrekken, verschil of begin/einde van een periode", def: { operation: "format", value: "{{$now}}", format: "YYYY-MM-DD", timezone: "Europe/Amsterdam", target: "datum" } },
+    crypto: { label: "Crypto & codering", group: "Data", color: "#4d7c0f", desc: "Hash, HMAC, UUID, Base64 en URL-codering", def: { operation: "hash", value: "", algorithm: "sha256", encoding: "hex", target: "hash" } },
+    jwt: { label: "JWT", group: "Data", color: "#9333ea", desc: "JSON Web Token maken, controleren of lezen", def: { operation: "sign", algorithm: "HS256", credential: "", claims: {}, expiresIn: 3600, target: "token" } },
+    compression: { label: "Compressie", group: "Data", color: "#57534e", desc: "Gzip, deflate of brotli in- en uitpakken", def: { operation: "gzip", field: "content", target: "" } },
+    xslt: { label: "XSLT / XPath", group: "Data", color: "#b45309", desc: "XML transformeren met XSLT of waarden uitlezen met XPath", def: { operation: "transform", field: "content", stylesheet: "", parameters: {}, target: "xml" } },
+    soap: { label: "SOAP-aanroep", group: "Kern", color: "#c2410c", desc: "SOAP-webservice aanroepen (envelope, SOAPAction, Fault)", def: { url: "", action: "", version: "1.1", body: "", credential: "", target: "soap" } },
+    switch: { label: "Switch", group: "Flow", color: "#a16207", desc: "Meerdere paden: de eerste regel die klopt bepaalt de uitgang", def: { field: "", rules: [{ name: "a", op: "equals", value: "" }] } },
+    stop: { label: "Stoppen met fout", group: "Flow", color: "#b91c1c", desc: "Proces stoppen met een eigen foutmelding", def: { message: "" } },
     branch: { label: "Beslissing", group: "Flow", color: "#c07a00", desc: "Exclusieve gateway: ja- of nee-pad", def: { when: "", op: "truthy", value: "" }, shape: "gateway" },
     end: { label: "Einde", group: "Flow", color: "#1b2536", desc: "Eindevent: dit pad stopt hier", def: {}, shape: "end" }
   };
@@ -95,7 +115,9 @@
     schedule: { label: "Schema (cron)", desc: "Periodiek starten" },
     queue: { label: "Queue", desc: "Start per bericht op een queue" },
     file: { label: "Map (lokaal)", desc: "Nieuwe bestanden in een map" },
-    ftp: { label: "FTP / SFTP", desc: "Nieuwe bestanden op een FTP/SFTP-server" }
+    ftp: { label: "FTP / SFTP", desc: "Nieuwe bestanden op een FTP/SFTP-server" },
+    poll: { label: "Plugin: nieuwe items", desc: "Periodiek een plugin-operatie uitvoeren en per nieuw item starten (nieuwe e-mails, issues, orders, feeditems, …)" },
+    error: { label: "Fout in ander proces", desc: "Start wanneer een ander proces op dezelfde omgeving faalt (foutafhandeling en alarmering)" }
   };
   function triggerSub(t, name) {
     t = t || {};
@@ -106,6 +128,8 @@
     if (t.type === "schedule") return t.everySeconds ? `elke ${t.everySeconds}s` : t.cron || "";
     if (t.type === "queue") return t.queue || "";
     if (t.type === "file" || t.type === "ftp") return t.dir || "";
+    if (t.type === "poll") return [(pluginInfo(t.plugin) || {}).name || t.plugin, t.operation].filter(Boolean).join(" · ");
+    if (t.type === "error") return t.integrations || "alle processen";
     return t.source || "";
   }
 
@@ -115,6 +139,12 @@
     if (shape === "start") return { shape, w: 40, h: 40, in: null, outs: [{ port: "out", x: 40, y: 20, dir: "right" }] };
     if (shape === "end") return { shape, w: 40, h: 40, in: { x: 0, y: 20 }, outs: [] };
     if (shape === "timer") return { shape, w: 40, h: 40, in: { x: 0, y: 20 }, outs: [{ port: "out", x: 40, y: 20, dir: "right" }] };
+    if (n.type === "switch") {
+      const rules = n.config && Array.isArray(n.config.rules) ? n.config.rules : [];
+      const ports = [...rules.map((r, i) => String(r.name || r.column || `regel${i + 1}`)), "default"];
+      const h = Math.max(76, 22 * ports.length + 22);
+      return { shape: "task", w: 130, h, in: { x: 0, y: Math.round(h / 2) }, outs: ports.map((p, i) => ({ port: p, x: 130, y: Math.round((h / (ports.length + 1)) * (i + 1)), dir: "right", label: p === "default" ? "anders" : p })) };
+    }
     if (shape === "gateway")
       return { shape, w: 52, h: 52, in: { x: 0, y: 26 }, outs: [{ port: "true", x: 52, y: 26, dir: "right", label: "ja" }, { port: "false", x: 26, y: 52, dir: "down", label: "nee" }] };
     return { shape, w: 130, h: 76, in: { x: 0, y: 38 }, outs: [{ port: "out", x: 130, y: 38, dir: "right" }] };
@@ -123,7 +153,8 @@
   // BPMN-taakmarkering per staptype, en welke data-artefacten erbij horen.
   const MARKER = { call: "m-service", "mcp-tool": "m-service", sql: "m-service", ftp: "m-service", file: "m-service", datatable: "m-service",
     code: "m-script", transform: "m-script", enrich: "m-script", validate: "m-rule", "duplicate-check": "m-rule", csv: "m-script", xml: "m-script",
-    email: "m-send", notify: "m-send", "queue-publish": "m-send", "queue-get": "m-receive", connector: "m-service" };
+    email: "m-send", notify: "m-send", "queue-publish": "m-send", "queue-get": "m-receive", connector: "m-service", soap: "m-service",
+    list: "m-script", datetime: "m-script", crypto: "m-script", jwt: "m-script", compression: "m-script", xslt: "m-script", switch: "m-rule" };
   const ARTIFACT = { datatable: "store", sql: "store", file: "object", ftp: "object" };
 
   function wrapText(txt, max = 17, lines = 3) {
@@ -139,7 +170,7 @@
     if (out.length === lines && words.join(" ").length > out.join(" ").length) out[lines - 1] = out[lines - 1].replace(/.?$/, "…");
     return out;
   }
-  const portOf = (c, fromNode) => c.port ?? (fromNode && fromNode.type === "branch" ? "true" : "out");
+  const portOf = (c, fromNode) => c.port ?? (fromNode && fromNode.type === "branch" ? "true" : fromNode && fromNode.type === "switch" ? "default" : "out");
 
   // Haakse (orthogonale) sequence flow met afgeronde hoeken, zoals in BPMN-editors.
   function edgePath(p1, dir, p2) {
@@ -378,15 +409,15 @@
         inner = `<path class="gwx" d="M18,18 L34,34 M34,18 L18,34"/>`;
         labels = `<text class="lbl" x="26" y="-10">${esc(name.length > 24 ? name.slice(0, 23) + "…" : name)}</text>`;
       } else {
-        body = `<rect class="body" width="130" height="76" rx="10"/>`;
+        body = `<rect class="body" width="130" height="${g.h}" rx="10"/>`;
         const mk = MARKER[n.type];
         if (mk) inner += iconSvg(mk, "#3d4a5c", 15, 7, 7, 1.8);
         const lines = wrapText(name);
-        const y0 = 38 - ((lines.length - 1) * 15) / 2 + 4;
+        const y0 = g.h / 2 - ((lines.length - 1) * 15) / 2 + 4;
         inner += lines.map((l, k) => `<text class="tlbl" x="65" y="${y0 + k * 15}">${esc(l)}</text>`).join("");
         if (call) inner += `<rect class="cmark" x="58" y="61" width="14" height="12" rx="1"/><path class="cmark" d="M65,64 v6 M62,67 h6"/>`;
         const subLabel = n.type === "connector" ? (pluginInfo(n.config?.plugin)?.name || "Connector") : t.label;
-        labels = `<text class="sub" x="65" y="90">${esc(subLabel)}</text>`;
+        labels = `<text class="sub" x="65" y="${g.h + 14}">${esc(subLabel)}</text>`;
         const a = ARTIFACT[n.type];
         if (a === "store") {
           const lbl = n.type === "datatable" ? n.config?.table : "database";
@@ -1412,10 +1443,11 @@
       const rows = (entries.length ? entries : [["", ""]]).map(([a, b]) => `<div class="kvr"><input class="f" placeholder="${left}" value="${esc(a)}"><span class="kva">${arrow}</span><input class="f" placeholder="${right}" value="${esc(typeof b === "string" ? b : JSON.stringify(b))}"><button class="x" data-delrow aria-label="Rij verwijderen">×</button></div>`).join("");
       return `<label>${label}</label><div class="rows" data-k="${k}">${rows}</div><div class="ndv-drop" data-drop="${k}">Sleep invoervelden hierheen of <button type="button" class="lnk" data-addrow="${k}" data-l="${left}" data-r="${right}" data-a="${arrow}">+ Rij toevoegen</button></div>${hintHtml(hint)}`;
     },
-    conds: (k, label, list, columns, hint = "") => {
-      const ops = [["eq", "is gelijk aan"], ["ne", "is niet"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["contains", "bevat"], ["empty", "is leeg"], ["notEmpty", "is niet leeg"]];
-      const row = (c) => `<div class="cdr"><input class="f" list="cols-${k}" placeholder="kolom" value="${esc(c.column || "")}"><select class="f">${ops.map(([v, l]) => `<option value="${v}" ${(c.op || "eq") === v ? "selected" : ""}>${l}</option>`).join("")}</select><input class="f" placeholder="waarde of {{veld}}" value="${esc(c.value ?? "")}"><button class="x" data-delcond aria-label="Voorwaarde verwijderen">×</button></div>`;
-      return `<label>${label}</label><datalist id="cols-${k}">${(columns || []).map((c) => `<option value="${esc(c)}">`).join("")}</datalist><div class="conds" data-k="${k}">${(list && list.length ? list : [{}]).map(row).join("")}</div><button class="btn sm sec" data-addcond="${k}">+ Voorwaarde</button>${hintHtml(hint)}`;
+    conds: (k, label, list, columns, hint = "", o = {}) => {
+      const ops = o.ops || [["eq", "is gelijk aan"], ["ne", "is niet"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["contains", "bevat"], ["empty", "is leeg"], ["notEmpty", "is niet leeg"]];
+      const first = (c) => c.column ?? c[o.firstKey || "column"] ?? "";
+      const row = (c) => `<div class="cdr"><input class="f" list="cols-${k}" placeholder="${esc(o.placeholder || "kolom")}" value="${esc(first(c))}"><select class="f">${ops.map(([v, l]) => `<option value="${v}" ${(c.op || ops[0][0]) === v ? "selected" : ""}>${l}</option>`).join("")}</select><input class="f" placeholder="waarde of {{veld}}" value="${esc(c.value ?? "")}"><button class="x" data-delcond aria-label="Voorwaarde verwijderen">×</button></div>`;
+      return `<label>${label}</label><datalist id="cols-${k}">${(columns || []).map((c) => `<option value="${esc(c)}">`).join("")}</datalist><div class="conds" data-k="${k}">${(list && list.length ? list : [{}]).map(row).join("")}</div><button class="btn sm sec" data-addcond="${k}">${esc(o.addLabel || "+ Voorwaarde")}</button>${hintHtml(hint)}`;
     }
   };
   const FORMATS = [["text", "tekst"], ["json", "JSON"], ["csv", "CSV"], ["xml", "XML"]];
@@ -1425,7 +1457,7 @@
   function connectorForm(c, ctx) {
     const list = pluginList();
     const def = c.plugin ? (window.AIP_PLUGIN_DEFS || {})[c.plugin] : null;
-    let html = `<label for="cn-plugin">Plugin</label><select class="f" id="cn-plugin" data-k="plugin" data-rerender><option value="">— kies een plugin —</option>${list.map((p) => `<option value="${esc(p.id)}" ${p.id === c.plugin ? "selected" : ""}>${esc(p.name)} · ${esc(p.category)}</option>`).join("")}</select>`;
+    let html = `<label for="cn-plugin">Plugin</label><select class="f" id="cn-plugin" data-k="plugin" data-rerender><option value="">— kies een plugin —</option>${list.map((p) => `<option value="${esc(p.id)}" ${p.id === c.plugin ? "selected" : ""}>${esc(p.name)} · ${esc(p.category)}</option>`).join("")}${c.plugin && !list.some((p) => p.id === c.plugin) ? `<option value="${esc(c.plugin)}" selected>${esc(c.plugin)} (niet geactiveerd)</option>` : ""}</select>`;
     if (!c.plugin) return html + hintHtml("Alle connectors staan op de pagina Plugins.");
     if (!def) { if (ctx.loadPlugin) ctx.loadPlugin(c.plugin); return html + `<div class="hint">Definitie laden…</div>`; }
     const groups = [...new Set(def.operations.map((o) => o.resource))];
@@ -1461,7 +1493,7 @@
   }
 
   // Bekende instellingen per staptype (voor waarschuwing/herstel van handmatig geplakte JSON).
-  const CFG_KEYS = { enrich: ["set", "keepOthers"], transform: ["mapping", "keepOthers"], validate: ["required"] };
+  const CFG_KEYS = { enrich: ["set", "keepOthers"], transform: ["mapping", "keepOthers"], validate: ["required", "schema", "schemaField"] };
   const unknownKeys = (type, cfg) => (CFG_KEYS[type] && cfg && typeof cfg === "object" && !Array.isArray(cfg) ? Object.keys(cfg).filter((k) => !CFG_KEYS[type].includes(k)) : []);
   // Geplakte data herstellen: losse velden horen onder set/mapping; een lijst onder required.
   function repairConfig(type, cfg, force = false) {
@@ -1485,7 +1517,9 @@
     const c = step.config || {};
     switch (step.type) {
       case "validate":
-        return F.lines("required", "Verplichte velden", c.required, "orderId\ncustomer.email", "Eén veld per regel; punten voor geneste velden. Ontbreekt of leeg → de stap faalt.");
+        return F.lines("required", "Verplichte velden", c.required, "orderId\ncustomer.email", "Eén veld per regel; punten voor geneste velden. Ontbreekt of leeg → de stap faalt.") +
+          F.json("schema", "JSON Schema (optioneel)", c.schema || {}, "Bijvoorbeeld <code>{\"type\":\"object\",\"required\":[\"email\"]}</code>. Leeg = alleen de verplichte velden.") +
+          (c.schema && Object.keys(c.schema).length ? F.text("schemaField", "Schema toepassen op veld (optioneel)", c.schemaField, "order", "Leeg = het hele bericht.") : "");
       case "transform":
         return F.rows("mapping", "Mapping", c.mapping, "doelveld", "bron.pad of {{template}}", "←", "Doelveld krijgt de waarde van het bronpad. Punten in het doelveld maken geneste objecten.") +
           F.check("keepOthers", "Niet-gemapte velden behouden", c.keepOthers !== false, "Uit: de output bevat alleen de gemapte velden. Aan: het hele bericht plus de mapping.");
@@ -1579,6 +1613,79 @@
           F.select("op", "Voorwaarde", c.op || "truthy", [["truthy", "is waar / gevuld"], ["exists", "bestaat"], ["equals", "is gelijk aan"], ["notEquals", "is niet gelijk aan"], ["gt", "groter dan"], ["lt", "kleiner dan"], ["contains", "bevat"]], "", true) +
           (["equals", "notEquals", "gt", "lt", "contains"].includes(c.op) ? F.text("value", "Waarde", c.value) : "") +
           hintHtml("Voldaan → <b>ja</b>-pad (rechts). Anders → <b>nee</b>-pad (onder).");
+      case "list": {
+        const op = c.operation || "sort";
+        const ops = [["sort", "sorteren"], ["filter", "filteren"], ["limit", "eerste/laatste N"], ["dedupe", "ontdubbelen"], ["pluck", "één veld uit elk element"], ["summarize", "samenvatten (groeperen)"], ["flatten", "platslaan (sublijsten)"], ["join", "koppelen met tweede lijst (join)"], ["compare", "vergelijken met tweede lijst"], ["chunk", "opdelen in blokken"], ["reverse", "omkeren"], ["count", "tellen"]];
+        const fops = [["equals", "is gelijk aan"], ["notEquals", "is niet"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["contains", "bevat"], ["notContains", "bevat niet"], ["startsWith", "begint met"], ["endsWith", "eindigt op"], ["regex", "regex"], ["in", "een van (komma)"], ["exists", "bestaat"], ["empty", "is leeg"], ["notEmpty", "is niet leeg"], ["truthy", "is waar / gevuld"]];
+        return F.select("operation", "Bewerking", op, ops, "", true) +
+          F.text("field", "Lijst", c.field, "orders", "Pad naar de lijst in het bericht.") +
+          (op === "sort" ? F.text("by", "Sorteren op", c.by, "bedrag", "Veldpad(en), komma-gescheiden. Leeg = de waarden zelf.") + F.check("desc", "Aflopend", c.desc) : "") +
+          (op === "filter" ? F.conds("conditions", "Voorwaarden", c.conditions, [], "Veldpad binnen elk element; de waarde mag <code>{{veld}}</code> uit het bericht bevatten.", { ops: fops, placeholder: "veld in element" }) + F.select("match", "Behouden als", c.match || "all", [["all", "alle voorwaarden kloppen"], ["any", "minstens één klopt"]]) : "") +
+          (op === "limit" || op === "chunk" ? F.num("count", op === "chunk" ? "Blokgrootte" : "Aantal", c.count ?? 10) + (op === "limit" ? F.select("from", "Van", c.from || "start", [["start", "begin"], ["end", "eind"]]) : "") : "") +
+          (["dedupe", "pluck", "flatten"].includes(op) ? F.text("key", op === "dedupe" ? "Uniek op veld" : op === "flatten" ? "Veld met sublijst" : "Veld", c.key, op === "dedupe" ? "email (leeg = heel element)" : "regels") : "") +
+          (op === "flatten" ? F.check("keepParent", "Velden van het bovenliggende element behouden", c.keepParent !== false) : "") +
+          (op === "summarize" ? F.text("groupBy", "Groeperen op", c.groupBy, "klant", "Veldpad(en), komma-gescheiden. Leeg = één totaal.") + F.json("metrics", "Berekeningen", c.metrics || [{ field: "bedrag", fn: "sum", as: "omzet" }, { fn: "count", as: "aantal" }], "Functies: count, sum, avg, min, max, concat, first, last, unique, list.") : "") +
+          (op === "join" || op === "compare" ? F.text("with", "Tweede lijst", c.with, "klanten") + F.text("key", "Sleutel in deze lijst", c.key, "klantId") + F.text("otherKey", "Sleutel in tweede lijst", c.otherKey, "id (leeg = zelfde)") : "") +
+          (op === "join" ? F.select("mode", "Soort", c.mode || "left", [["left", "alle elementen houden (left join)"], ["inner", "alleen met treffer (inner join)"]]) + F.text("into", "Gekoppelde rij in veld (optioneel)", c.into, "klant", "Leeg = velden samenvoegen.") : "") +
+          (op === "compare" ? hintHtml("Uitkomst: <code>gelijk</code>, <code>verschillend</code>, <code>alleenLinks</code>, <code>alleenRechts</code> en <code>telling</code>.") : "") +
+          F.text("target", "Resultaat in veld", c.target, c.field || "zelfde veld");
+      }
+      case "datetime": {
+        const op = c.operation || "format";
+        return F.select("operation", "Bewerking", op, [["now", "huidige datum/tijd"], ["format", "opmaken"], ["add", "optellen"], ["subtract", "aftrekken"], ["diff", "verschil tussen twee datums"], ["startOf", "begin van periode"], ["endOf", "einde van periode"], ["parts", "onderdelen (jaar, maand, …)"]], "", true) +
+          (op !== "now" ? F.text("value", "Datum", c.value, "{{order.datum}}", "ISO-datum, unix-tijd, DD-MM-YYYY of een {{veld}}. Leeg = nu.") + F.text("inputFormat", "Invoerformaat (optioneel)", c.inputFormat, "DD-MM-YYYY HH:mm") : "") +
+          (["add", "subtract"].includes(op) ? F.text("amount", "Aantal", c.amount ?? 1, "1 of {{dagen}}") : "") +
+          (["add", "subtract", "diff", "startOf", "endOf"].includes(op) ? F.select("unit", "Eenheid", c.unit || "days", [["seconds", "seconden"], ["minutes", "minuten"], ["hours", "uren"], ["days", "dagen"], ["weeks", "weken"], ["months", "maanden"], ["years", "jaren"]]) : "") +
+          (op === "diff" ? F.text("other", "Tweede datum", c.other, "{{$now}}", "Uitkomst = tweede − eerste, in de gekozen eenheid.") : "") +
+          (op !== "diff" && op !== "parts" ? F.text("format", "Uitvoerformaat", c.format, "ISO", "ISO, unix, unixMs of tokens: YYYY MM DD HH mm ss (bv. DD-MM-YYYY).") : "") +
+          F.text("timezone", "Tijdzone", c.timezone, "Europe/Amsterdam") + F.text("target", "Resultaat in veld", c.target, "datum");
+      }
+      case "crypto": {
+        const op = c.operation || "hash";
+        const needsKey = op === "hmac" || op === "hmacVerify";
+        return F.select("operation", "Bewerking", op, [["hash", "hash"], ["hmac", "HMAC-handtekening maken"], ["hmacVerify", "HMAC-handtekening controleren (webhooks)"], ["uuid", "UUID"], ["random", "willekeurige waarde"], ["base64Encode", "Base64 coderen"], ["base64Decode", "Base64 decoderen"], ["urlEncode", "URL coderen"], ["urlDecode", "URL decoderen"], ["hexEncode", "hex coderen"], ["hexDecode", "hex decoderen"]], "", true) +
+          (op !== "uuid" && op !== "random" ? F.text("value", "Waarde", c.value, "{{email}}", TPL_HINT) + F.text("field", "Of: veld (onbewerkt)", c.field, "rawBody", "Heeft voorrang; objecten worden als JSON gebruikt.") : "") +
+          (["hash", "hmac", "hmacVerify"].includes(op) ? F.select("algorithm", "Algoritme", c.algorithm || "sha256", ["md5", "sha1", "sha256", "sha384", "sha512"]) : "") +
+          (["hash", "hmac", "hmacVerify", "random"].includes(op) ? F.select("encoding", "Codering", c.encoding || "hex", ["hex", "base64", "base64url"]) : "") +
+          (op === "random" ? F.num("length", "Aantal bytes", c.length ?? 16) : "") +
+          (needsKey ? F.cred("Sleutel (koppeling)", c.credential, ["generic"], ctx, "Algemene koppeling met het veld <code>secret</code>; per omgeving een andere sleutel.") : "") +
+          (op === "hmacVerify" ? F.text("signature", "Ontvangen handtekening", c.signature, "{{_trigger.headers.x-signature}}", "Een voorvoegsel zoals <code>sha256=</code> wordt genegeerd.") + F.check("failOnInvalid", "Stoppen als de handtekening niet klopt", c.failOnInvalid !== false) : "") +
+          F.text("target", "Resultaat in veld", c.target, "crypto");
+      }
+      case "jwt": {
+        const op = c.operation || "sign";
+        return F.select("operation", "Bewerking", op, [["sign", "token maken"], ["verify", "token controleren"], ["decode", "token lezen (zonder controle)"]], "", true) +
+          (op !== "decode" ? F.select("algorithm", "Algoritme", c.algorithm || "HS256", ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384"]) + F.cred("Sleutel (koppeling)", c.credential, ["generic"], ctx, "Algemene koppeling met <code>secret</code> (HS) of <code>privateKey</code>/<code>publicKey</code> in PEM (RS/ES).") : "") +
+          (op === "sign" ? F.json("claims", "Claims (JSON met templates)", c.claims) + F.num("expiresIn", "Geldig (seconden)", c.expiresIn ?? 3600) + F.text("kid", "Key-ID (kid, optioneel)", c.kid) :
+            F.text("tokenField", "Token uit veld", c.tokenField, "_trigger.headers.authorization", "'Bearer ' wordt verwijderd.") + (op === "verify" ? F.text("issuer", "Verwachte uitgever (iss)", c.issuer) + F.text("audience", "Verwachte doelgroep (aud)", c.audience) : "")) +
+          F.text("target", "Resultaat in veld", c.target, op === "sign" ? "token" : "jwt");
+      }
+      case "compression":
+        return F.select("operation", "Bewerking", c.operation || "gzip", [["gzip", "gzip inpakken"], ["gunzip", "gzip uitpakken"], ["deflate", "deflate inpakken"], ["inflate", "deflate uitpakken"], ["brotli", "brotli inpakken"], ["unbrotli", "brotli uitpakken"]], "Ingepakte gegevens zijn Base64-tekst.") +
+          F.text("field", "Bronveld", c.field, "content") + F.text("target", "Doelveld", c.target, c.field || "zelfde veld") + F.check("parseJson", "Na uitpakken JSON lezen", c.parseJson);
+      case "xslt": {
+        const op = c.operation || "transform";
+        return F.select("operation", "Bewerking", op, [["transform", "XSLT-transformatie"], ["xpath", "XPath-waarden uitlezen"]], "", true) +
+          F.text("field", "XML uit veld", c.field, "content", "XML-tekst, of een object (wordt eerst XML).") +
+          (op === "transform" ? F.area("stylesheet", "XSLT-stylesheet (1.0)", c.stylesheet, '<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">…</xsl:stylesheet>', "Externe bestanden (xsl:import van een URL) zijn niet toegestaan.", "codearea") +
+            F.rows("parameters", "Parameters (xsl:param)", c.parameters, "naam", "waarde of {{veld}}", "=") + F.text("target", "Resultaat in veld", c.target, "xml") + F.check("parse", "Uitvoer ook als object (veld + 'Data')", c.parse)
+            : F.rows("expressions", "Expressies", c.expressions, "doelveld", "XPath, bv. string(/factuur/@nr)", "←") + F.check("all", "Bij meerdere treffers een lijst", c.all));
+      }
+      case "soap":
+        return F.text("url", "Endpoint", c.url, "https://service.voorbeeld.nl/ws") + F.text("action", "SOAPAction", c.action, "urn:voorbeeld#GetOrder") +
+          F.select("version", "SOAP-versie", c.version || "1.1", [["1.1", "1.1 (text/xml)"], ["1.2", "1.2 (application/soap+xml)"]]) +
+          F.cred("Authenticatie", c.credential, ["http-basic", "http-bearer", "api-key", "generic"], ctx) +
+          F.area("body", "Body (XML binnen soap:Body)", typeof c.body === "string" ? c.body : "", '<m:GetOrder xmlns:m="urn:voorbeeld"><id>{{orderId}}</id></m:GetOrder>', TPL_HINT, "codearea sm") +
+          F.text("bodyField", "Of: body uit veld", c.bodyField, "request", "XML-tekst of een object.") + F.area("header", "SOAP-header (optioneel, XML)", c.header, "", "", "codearea sm") +
+          F.text("target", "Antwoord in veld", c.target, "soap") + hintHtml("Een SOAP Fault laat de stap falen met de foutmelding uit het antwoord.");
+      case "switch": {
+        const sops = [["equals", "is gelijk aan"], ["notEquals", "is niet"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["contains", "bevat"], ["startsWith", "begint met"], ["endsWith", "eindigt op"], ["regex", "regex"], ["in", "een van (komma)"], ["exists", "bestaat"], ["empty", "is leeg"], ["truthy", "is waar / gevuld"]];
+        return F.text("field", "Veld", c.field, "order.land") +
+          F.conds("rules", "Regels (uitgangen)", c.rules, [], "Per regel een uitgang op het canvas. De eerste regel die klopt wint; anders het pad <b>anders</b>.", { ops: sops, placeholder: "naam uitgang", firstKey: "name", addLabel: "+ Regel" }) +
+          F.check("failIfNoMatch", "Fout als geen regel klopt (in plaats van 'anders')", c.failIfNoMatch);
+      }
+      case "stop":
+        return F.text("message", "Foutmelding", c.message, "Order {{orderId}} heeft geen klant", TPL_HINT) + F.text("code", "Foutcode (optioneel)", c.code, "GEEN_KLANT") + hintHtml("De run faalt zonder nieuwe pogingen. Een proces met de trigger <b>Fout in ander proces</b> kan erop reageren.");
       case "end":
         return `<p class="muted">Eindevent: dit pad van het proces stopt hier. Er zijn geen parameters.</p>`;
       default:
@@ -1652,6 +1759,27 @@
         F.select("format", "Inhoud lezen als", t.format || "text", FORMATS, "Het bericht bevat <code>file.name</code>, <code>file.content</code> en <code>file.data</code>.") +
         F.select("after", "Na verwerken", t.after || "move", [["move", "verplaatsen naar archief"], ["delete", "verwijderen"]], "Mislukte bestanden gaan naar <code>&lt;map&gt;/error</code>.") +
         F.text("archiveDir", "Archiefmap", t.archiveDir, `${t.dir || "inbox"}/archive`);
+    } else if (t.type === "poll") {
+      const list = pluginList();
+      const pdef = t.plugin ? (window.AIP_PLUGIN_DEFS || {})[t.plugin] : null;
+      if (t.plugin && !pdef && ctx.loadPlugin) ctx.loadPlugin(t.plugin);
+      html += `<label for="tp-plugin">Plugin</label><select class="f" id="tp-plugin" data-k="plugin" data-rerender><option value="">— kies een plugin —</option>${list.map((p) => `<option value="${esc(p.id)}" ${p.id === t.plugin ? "selected" : ""}>${esc(p.name)}</option>`).join("")}${t.plugin && !list.some((p) => p.id === t.plugin) ? `<option value="${esc(t.plugin)}" selected>${esc(t.plugin)} (niet geactiveerd)</option>` : ""}</select>`;
+      if (pdef) {
+        const ops = pdef.operations.filter((op) => op.method === "GET" || /list|search|zoek|read|find|query/i.test(op.id));
+        html += `<label for="tp-op">Operatie</label><select class="f" id="tp-op" data-k="operation" data-rerender><option value="">— kies een operatie —</option>${ops.map((op) => `<option value="${esc(op.id)}" ${op.id === t.operation ? "selected" : ""}>${esc(op.resource)} · ${esc(op.label)}</option>`).join("")}</select>`;
+        if (pdef.auth.type !== "none") {
+          const creds = (ctx.credentials || []).filter((x) => x.type === "plugin" && x.plugin === pdef.id);
+          html += `<label for="tp-cred">Koppeling</label><select class="f" id="tp-cred" data-k="credential"><option value="">— geen —</option>${creds.map((x) => `<option value="${esc(x.name)}" ${x.name === t.credential ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`;
+        }
+      }
+      html += F.json("params", "Parameters (JSON)", t.params || {}, "Zelfde parameters als in de connector-stap.") +
+        F.text("idField", "Uniek veld per item", t.idField, "id") + F.text("itemsPath", "Lijst in het antwoord (optioneel)", t.itemsPath, "items") +
+        F.num("intervalSeconds", "Controleren elke (seconden)", t.intervalSeconds ?? 60, "Minimaal 10.") + F.num("maxPerPoll", "Maximaal per keer", t.maxPerPoll ?? 50) +
+        F.check("includeExisting", "Bij de eerste keer ook bestaande items verwerken", t.includeExisting) +
+        hintHtml("Elk nieuw item start één uitvoering; het bericht is het item zelf. Al verwerkte id's worden onthouden (ook na herstart).");
+    } else if (t.type === "error") {
+      html += F.text("integrations", "Alleen bij deze processen (optioneel)", t.integrations, "OrderNaarErp, FactuurImport", "Komma-gescheiden. Leeg = elk ander proces op dezelfde omgeving.") +
+        hintHtml("Het bericht bevat <code>error.integration</code>, <code>error.message</code>, <code>error.step</code> (id, type, fout, invoer) en <code>error.runId</code>. Reageert niet op zichzelf of op andere foutprocessen.");
     } else {
       html += F.text("source", "Omschrijving bron", t.source, "webshop");
     }
@@ -1843,7 +1971,7 @@
       cnt.textContent = output && output.ok ? `· ${itemCount(output.output)}` : "";
       if (!output) { el.innerHTML = `<div class="empty">Nog geen output.<br>Klik op “Stap uitvoeren”.</div>`; return; }
       if (!output.ok) { el.innerHTML = `<div class="ndv-src">${output.fromRun ? "Uit de laatste uitvoering" : "Stap uitgevoerd"}</div><div class="ndv-err">✕ ${esc(output.error)}</div>`; return; }
-      el.innerHTML = `<div class="ndv-src">${output.fromRun ? "Uit de laatste uitvoering" : `Stap uitgevoerd in ${output.ms} ms`}${output.port ? ` · <span class="chip ${output.port === "true" ? "ok" : "warn"}">→ ${output.port === "true" ? "ja" : "nee"}-pad</span>` : ""}<span style="flex:1"></span><button class="lnk" id="ndv-copy" type="button" title="Output als JSON kopiëren">Kopiëren</button></div>${dataViewHtml(views.out, output.output)}`;
+      el.innerHTML = `<div class="ndv-src">${output.fromRun ? "Uit de laatste uitvoering" : `Stap uitgevoerd in ${output.ms} ms`}${output.port ? ` · <span class="chip ${output.port === "false" || output.port === "default" ? "warn" : "ok"}">→ ${output.port === "true" ? "ja" : output.port === "false" ? "nee" : output.port === "default" ? "anders" : esc(output.port)}-pad</span>` : ""}<span style="flex:1"></span><button class="lnk" id="ndv-copy" type="button" title="Output als JSON kopiëren">Kopiëren</button></div>${dataViewHtml(views.out, output.output)}`;
     }
     function renderForm() {
       overlay.querySelectorAll(".ndv-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
@@ -1858,7 +1986,7 @@
         el.innerHTML = `<label for="s-id">Technische naam (id)</label><input class="f mono" id="s-id" value="${esc(step.id)}">
           <div class="hint">Wordt gebruikt in logs en verbindingen. Letters, cijfers, - en _.</div>
           <label>Type</label><div>${esc(t.label)} <span class="faint mono">(${esc(step.type)})</span></div>
-          <label>Verbindingen</label><div class="muted" style="font-size:.85rem">${def.connections.filter((c) => c.to === step.id).map((c) => `← ${esc(c.from)}`).join("<br>") || "geen inkomende"}<br>${def.connections.filter((c) => c.from === step.id).map((c) => `→ ${esc(c.to)}${c.port ? ` (${c.port === "true" ? "ja" : "nee"})` : ""}`).join("<br>") || "geen uitgaande"}</div>
+          <label>Verbindingen</label><div class="muted" style="font-size:.85rem">${def.connections.filter((c) => c.to === step.id).map((c) => `← ${esc(c.from)}`).join("<br>") || "geen inkomende"}<br>${def.connections.filter((c) => c.from === step.id).map((c) => `→ ${esc(c.to)}${c.port ? ` (${c.port === "true" ? "ja" : c.port === "false" ? "nee" : c.port === "default" ? "anders" : esc(c.port)})` : ""}`).join("<br>") || "geen uitgaande"}</div>
           <div style="margin-top:18px"><button class="btn sm no" id="s-del">Element verwijderen</button></div>`;
       }
     }

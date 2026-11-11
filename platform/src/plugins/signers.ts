@@ -55,6 +55,20 @@ export const SIGNERS: Record<string, Signer> = {
     headers["accept-version"] = "v5.0";
   },
 
+  // ZGW API's (Zaken, Documenten, Catalogi, Besluiten, Notificaties): JWT (HS256) met client-ID en secret,
+  // claims volgens de VNG-standaard (iss, iat, client_id, user_id). Of een vast token als dat is ingevuld.
+  "zgw-jwt"({ values, headers }) {
+    if (values.token) { headers.authorization = `${values.token.includes(" ") ? "" : "Token "}${values.token}`; return; }
+    need(values, "clientId", "secret");
+    const now = Math.floor(Date.now() / 1000);
+    const head = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const payload = b64url(JSON.stringify({ iss: values.clientId, iat: now, client_id: values.clientId, user_id: values.userId || values.clientId, user_representation: values.userId || values.clientId }));
+    const sig = b64url(createHmac("sha256", values.secret).update(`${head}.${payload}`).digest());
+    headers.authorization = `Bearer ${head}.${payload}.${sig}`;
+    headers["accept-crs"] = headers["accept-crs"] || "EPSG:4326";
+    headers["content-crs"] = headers["content-crs"] || "EPSG:4326";
+  },
+
   // Azure Storage (Blob): Shared Key, of een SAS-token als dat is ingevuld.
   "azure-storage"({ values, method, url, headers, body }) {
     need(values, "account");

@@ -18,7 +18,8 @@
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:auth": "tsx scripts/auth-test.ts",
-    "test:apim": "tsx scripts/apim-test.ts"
+    "test:apim": "tsx scripts/apim-test.ts",
+    "test:scenarios": "tsx scripts/scenario-test.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.5",
@@ -47,6 +48,7 @@
     "simple-icons": "^16.33.0",
     "ssh2-sftp-client": "^12.1.1",
     "xml-crypto": "^6.3.3",
+    "xslt-processor": "5.1.2",
     "yaml": "^2.9.1",
     "zod": "^3.25.76"
   },
