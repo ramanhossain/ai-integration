@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { blockedReason, matchTemplate } from "./policy";
 
 // MCP-server van het integratieplatform. Elke tool is een dunne laag over de publieke
 // REST-API, dus via MCP gelden exact dezelfde regels als via de GUI: deploys en
@@ -12,6 +13,8 @@ export interface McpOptions {
   baseUrl: string; // REST-API van het platform
   allowApprovals: boolean;
   user: string; // wordt als actor/proposedBy vastgelegd in het audit log
+  allowDelete?: boolean; // call_api: verwijderen/leegmaken toestaan (AIP_MCP_ALLOW_DELETE)
+  onTool?: (name: string) => void; // voor de toollijst op de MCP-pagina en de MCP-agent
 }
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
@@ -23,7 +26,9 @@ export function createMcpServer(opts: McpOptions): McpServer {
       instructions:
         "Integratieplatform met omgevingen DEV → TEST → ACC → PROD. Een proces is een BPMN-achtige graaf (steps + connections) volgens het schema in resource aip://schema/integration. " +
         "Opslaan maakt altijd een nieuwe versie op DEV. Deployen naar TEST/ACC vraagt 1 menselijke goedkeuring, PROD 2 (4-ogen). Gebruik list_step_types voor de beschikbare stappen en triggers. " +
-        "Test een definitie eerst met test_process voordat je save_process gebruikt."
+        "Test een definitie eerst met test_process (of één stap met execute_step) voordat je save_process gebruikt. " +
+        "Monitoren: get_process_health (succesratio en laatste fout per proces), list_runs met status=error, get_run, list_queue_messages/redrive_queue, list_b2b_messages, get_dashboard. " +
+        "Functionaliteit zonder eigen tool vind je met list_api_operations en roep je aan met call_api."
     }
   );
 
@@ -42,9 +47,9 @@ export function createMcpServer(opts: McpOptions): McpServer {
   const ok = (data: unknown): ToolResult => ({ content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] });
   const fail = (e: unknown): ToolResult => ({ content: [{ type: "text", text: `Fout: ${(e as Error).message}` }], isError: true });
   const tool = <S extends z.ZodRawShape>(name: string, title: string, description: string, shape: S, fn: (args: z.objectOutputType<S, z.ZodTypeAny>) => Promise<unknown>) =>
-    server.registerTool(name, { title, description, inputSchema: shape }, (async (args: z.objectOutputType<S, z.ZodTypeAny>) => {
+    (opts.onTool?.(name), server.registerTool(name, { title, description, inputSchema: shape }, (async (args: z.objectOutputType<S, z.ZodTypeAny>) => {
       try { return ok(await fn(args)); } catch (e) { return fail(e); }
-    }) as never);
+    }) as never));
 
   const env = z.enum(["dev", "test", "acc", "prod"]);
   const json = z.record(z.string(), z.any());
@@ -103,12 +108,13 @@ export function createMcpServer(opts: McpOptions): McpServer {
   );
 
   // ---------- uitvoeringen & monitoring ----------
-  tool("list_runs", "Uitvoeringen", "Recente uitvoeringen, optioneel gefilterd op proces en omgeving.", { name: z.string().optional(), env: env.optional(), limit: z.number().int().min(1).max(200).optional() }, async (a) => {
+  tool("list_runs", "Uitvoeringen", "Recente uitvoeringen, optioneel gefilterd op proces, omgeving en status (success/error).", { name: z.string().optional(), env: env.optional(), status: z.enum(["success", "error"]).optional(), limit: z.number().int().min(1).max(200).optional() }, async (a) => {
     const q = new URLSearchParams();
     if (a.name) q.set("integration", a.name);
     if (a.env) q.set("env", a.env);
-    q.set("limit", String(a.limit ?? 20));
-    const runs = await api("GET", `/api/v1/runs?${q}`);
+    q.set("limit", String(a.status ? 500 : a.limit ?? 20));
+    let runs = await api("GET", `/api/v1/runs?${q}`);
+    if (a.status) runs = runs.filter((r: any) => r.status === a.status).slice(0, a.limit ?? 20);
     return runs.map((r: any) => ({ id: r.id, integration: r.integration, env: r.env, version: r.version, status: r.status, triggeredBy: r.triggeredBy, durationMs: r.durationMs, at: r.finishedAt, error: r.error }));
   });
   tool("get_run", "Uitvoering ophalen", "Details van één uitvoering, inclusief input/output per stap.", { id: z.string() }, async (a) => api("GET", `/api/v1/runs/${encodeURIComponent(a.id)}`));
@@ -167,6 +173,98 @@ export function createMcpServer(opts: McpOptions): McpServer {
     api("POST", `/api/v1/queues/${a.env}`, { queue: a.queue, description: a.description })
   );
 
+  // ---------- bouwen: stappen, koppelingen en plugins los testen ----------
+  tool("execute_step", "Stap uitvoeren", "Voer één stap los uit op DEV (zoals 'Stap uitvoeren' in de editor) om de config te controleren voordat je hem in een proces zet. steps/trigger vullen {{$steps.<id>.…}} en {{$trigger.…}}.", { type: z.string(), config: json.optional(), input: json.optional(), steps: json.optional(), trigger: json.optional() }, async (a) =>
+    api("POST", "/api/v1/engine/execute-step", { type: a.type, config: a.config ?? {}, input: a.input ?? {}, steps: a.steps, trigger: a.trigger })
+  );
+  tool("list_credential_types", "Koppelingstypes", "Soorten koppelingen (HTTP, SQL, SMTP, MCP, plugin, …) met hun velden; welke velden geheim zijn.", {}, async () => api("GET", "/api/v1/credential-types"));
+  tool("save_credential", "Koppeling opslaan", "Maak of wijzig een koppeling met waarden per omgeving: values = { dev: {veld: waarde}, test: {...} }. Geheime velden worden versleuteld opgeslagen en nooit teruggegeven; laat een geheim veld weg om de bestaande waarde te houden.", { name: z.string(), type: z.string(), plugin: z.string().optional(), description: z.string().optional(), values: z.record(z.string(), z.record(z.string(), z.string())).optional() }, async (a) =>
+    api("PUT", `/api/v1/credentials/${encodeURIComponent(a.name)}`, { type: a.type, plugin: a.plugin, description: a.description, values: a.values })
+  );
+  tool("test_credential", "Koppeling testen", "Test de verbinding van een koppeling met de waarden van één omgeving.", { name: z.string(), env }, async (a) =>
+    api("POST", `/api/v1/credentials/${encodeURIComponent(a.name)}/test`, { env: a.env })
+  );
+  tool("run_plugin_operation", "Plugin-operatie uitvoeren", "Voer één operatie van een connector direct uit (niet op PROD), bv. om te zien welke velden een API teruggeeft voordat je een connector-stap bouwt.", { id: z.string(), operation: z.string(), credential: z.string().optional(), params: json.optional(), env: z.enum(["dev", "test", "acc"]).optional() }, async (a) =>
+    api("POST", `/api/v1/plugins/${encodeURIComponent(a.id)}/execute`, { operation: a.operation, credential: a.credential, params: a.params ?? {}, env: a.env })
+  );
+  tool("set_trigger", "Trigger pauzeren/hervatten", "Pauzeer of hervat de trigger (schema, webhook, queue, polling, …) van een proces op een omgeving.", { env, name: z.string(), action: z.enum(["pause", "resume"]) }, async (a) =>
+    api("POST", `/api/v1/triggers/${a.env}/${encodeURIComponent(a.name)}/${a.action}`)
+  );
+
+  // ---------- monitoring ----------
+  tool("get_process_health", "Gezondheid per proces", "Per proces (en omgeving): aantal uitvoeringen, fouten, succesratio, gemiddelde en maximale duur, laatste fout en tijdstip, dead-letters. Over de laatste `limit` uitvoeringen (standaard 500).", { name: z.string().optional(), env: env.optional(), limit: z.number().int().min(1).max(5000).optional() }, async (a) => {
+    const q = new URLSearchParams({ limit: String(a.limit ?? 500) });
+    if (a.name) q.set("integration", a.name);
+    if (a.env) q.set("env", a.env);
+    const runs: any[] = await api("GET", `/api/v1/runs?${q}`);
+    const groups = new Map<string, any[]>();
+    for (const r of runs.filter((r) => !r.test)) {
+      const k = `${r.integration}|${r.env}`;
+      groups.set(k, [...(groups.get(k) ?? []), r]);
+    }
+    return [...groups.entries()].map(([k, rs]) => {
+      const [integration, e] = k.split("|");
+      const errors = rs.filter((r) => r.status === "error");
+      const ms = rs.map((r) => r.durationMs ?? 0);
+      const lastError = errors.sort((x, y) => String(y.finishedAt).localeCompare(String(x.finishedAt)))[0];
+      return {
+        integration, env: e, runs: rs.length, errors: errors.length,
+        successRate: Math.round(((rs.length - errors.length) / rs.length) * 1000) / 10,
+        avgMs: Math.round(ms.reduce((s, x) => s + x, 0) / rs.length), maxMs: Math.max(...ms),
+        deadLettered: rs.filter((r) => r.deadLettered).length,
+        lastRunAt: rs.map((r) => r.finishedAt).sort().pop(),
+        lastError: lastError ? { at: lastError.finishedAt, message: lastError.error, runId: lastError.id } : undefined
+      };
+    }).sort((x, y) => y.errors - x.errors || x.integration.localeCompare(y.integration));
+  });
+  tool("list_incidents", "Incidenten", "Gemelde incidenten met analyse.", {}, async () => api("GET", "/api/v1/incidents"));
+  tool("list_security_findings", "Beveiligingsbevindingen", "Bevindingen van de securitycontrole.", {}, async () => api("GET", "/api/v1/findings"));
+  tool("get_audit_log", "Audit log", "Recente audit-regels (wie deed wat) en of de keten intact is.", { limit: z.number().int().min(1).max(1000).optional() }, async (a) =>
+    api("GET", `/api/v1/audit?limit=${a.limit ?? 50}`)
+  );
+  tool("list_queue_messages", "Queue-berichten", "Berichten op een queue, inclusief dead-letter, om vastgelopen berichten te bekijken.", { env, queue: z.string() }, async (a) =>
+    api("GET", `/api/v1/queues/${a.env}/${encodeURIComponent(a.queue)}/messages`)
+  );
+  tool("redrive_queue", "Dead-letter opnieuw aanbieden", "Zet alle dead-letterberichten van een queue terug op de queue zodat ze opnieuw verwerkt worden.", { env, queue: z.string() }, async (a) =>
+    api("POST", `/api/v1/queues/${a.env}/${encodeURIComponent(a.queue)}/redrive`)
+  );
+  tool("list_api_calls", "API-aanroepen", "API-management-monitoring: aanroepen van gepubliceerde API's met status en duur, plus statistiek. Filters o.a. api, env, status, minMs, limit.", { filters: z.record(z.string(), z.union([z.string(), z.number()])).optional() }, async (a) =>
+    api("GET", `/api/v1/apim/logs?${new URLSearchParams(Object.entries(a.filters ?? {}).map(([k, v]) => [k, String(v)] as [string, string]))}`)
+  );
+
+  tool("list_b2b_messages", "B2B-berichten (ebMS/AS4)", "Ingaande en uitgaande ebMS 2.0- of AS4-berichten van een omgeving met status (bv. om mislukte of onbevestigde berichten te vinden). box: inbox of outbox.", { protocol: z.enum(["ebms", "as4"]), env, credential: z.string().optional(), box: z.enum(["inbox", "outbox"]).optional() }, async (a) =>
+    api("GET", `/api/v1/${a.protocol}/${a.env}/messages?${new URLSearchParams(Object.entries({ credential: a.credential, box: a.box }).filter(([, v]) => v) as [string, string][])}`)
+  );
+  tool("redrive_b2b_message", "B2B-bericht opnieuw", "Bied een mislukt ebMS- of AS4-bericht opnieuw aan (id uit list_b2b_messages).", { protocol: z.enum(["ebms", "as4"]), env, id: z.string() }, async (a) =>
+    api("POST", `/api/v1/${a.protocol}/${a.env}/messages/${encodeURIComponent(a.id)}/redrive`)
+  );
+  tool("list_published_apis", "Gepubliceerde API's", "API's uit API-management met versies, gekoppelde processen en op welke omgevingen ze gedeployed zijn.", {}, async () => api("GET", "/api/v1/apim/apis"));
+
+  // ---------- alle overige functionaliteit (blijft vanzelf actueel) ----------
+  let spec: any;
+  const operations = async () => {
+    spec ??= await api("GET", "/openapi.json");
+    const out: Array<{ method: string; path: string; tags: string[]; summary?: string; blocked?: string }> = [];
+    for (const [path, ms] of Object.entries<any>(spec.paths ?? {}))
+      for (const [method, op] of Object.entries<any>(ms))
+        out.push({ method: method.toUpperCase(), path, tags: op.tags ?? [], summary: op.summary || op.description, blocked: blockedReason(method, path, { allowApprovals: opts.allowApprovals, allowDelete: Boolean(opts.allowDelete) }) });
+    return out;
+  };
+  tool("list_api_operations", "API-operaties", "Alle REST-operaties van het platform (uit de OpenAPI-spec), ook functionaliteit zonder eigen MCP-tool. Filter op zoektekst of tag. Aanroepen met call_api.", { q: z.string().optional(), tag: z.string().optional() }, async (a) => {
+    const q = a.q?.toLowerCase();
+    return (await operations()).filter((o) => !o.blocked && (!a.tag || o.tags.includes(a.tag)) && (!q || `${o.method} ${o.path} ${o.tags.join(" ")} ${o.summary ?? ""}`.toLowerCase().includes(q)))
+      .map(({ blocked: _b, ...o }) => o);
+  });
+  tool("call_api", "API aanroepen", "Roep een REST-operatie van het platform aan (zie list_api_operations), bv. method GET, path /api/v1/ebms/dev/messages. Zelfde regels als de GUI: PROD loopt via goedkeuring. Accounts/beheer, goedkeuren en verwijderen zijn hier niet toegestaan.", { method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]), path: z.string(), query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(), body: z.any().optional() }, async (a) => {
+    const path = a.path.split("?")[0];
+    const template = matchTemplate(path, (await operations()).filter((o) => o.method === a.method).map((o) => o.path));
+    if (!template) throw new Error(`Onbekende operatie ${a.method} ${path}; zie list_api_operations`);
+    const why = blockedReason(a.method, template, { allowApprovals: opts.allowApprovals, allowDelete: Boolean(opts.allowDelete) });
+    if (why) throw new Error(`Niet toegestaan via MCP: ${why}`);
+    const qs = a.query ? `?${new URLSearchParams(Object.entries(a.query).map(([k, v]) => [k, String(v)] as [string, string]))}` : "";
+    return api(a.method, path + qs, a.body);
+  });
+
   // ---------- resources ----------
   server.registerResource("integration-schema", "aip://schema/integration", { title: "Schema procesdefinitie", description: "JSON Schema van een procesdefinitie (Integration-as-Code)", mimeType: "application/json" }, async (uri) => ({
     contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(await api("GET", "/api/v1/schemas/integration"), null, 2) }]
@@ -200,4 +298,11 @@ export function createMcpServer(opts: McpOptions): McpServer {
   );
 
   return server;
+}
+
+// Namen van alle tools die een client met deze opties ziet (zonder iets aan te roepen).
+export function mcpToolNames(opts: McpOptions): string[] {
+  const names: string[] = [];
+  createMcpServer({ ...opts, onTool: (n) => names.push(n) });
+  return names;
 }

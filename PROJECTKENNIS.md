@@ -44,6 +44,10 @@ De belangrijkste onderdelen:
   - Elk gesprek begint nieuw; eerdere gesprekken staan in een geschiedenis.
   - Er zijn agents voor bouwen, monitoring en pagina-advies (Claude, of een heuristiek zonder API-sleutel).
 - **MCP-server:** het platform is bruikbaar vanuit Claude Desktop en andere MCP-clients, via stdio (`npm run mcp`) en HTTP (`/mcp`).
+  - 50 tools voor bouwen (o.a. design/test/save/deploy, `execute_step`, koppelingen, plugin-operaties, triggers) en monitoren (o.a. `get_process_health`, fouten, queues/dead-letter, ebMS/AS4-berichten, audit, API-aanroepen).
+  - `list_api_operations` + `call_api` maken elke overige REST-operatie bereikbaar, ook nieuwe. `src/mcp/policy.ts` blokkeert accounts/beheer, goedkeuren (tenzij `AIP_MCP_ALLOW_APPROVALS=true`) en verwijderen (tenzij `AIP_MCP_ALLOW_DELETE=true`).
+  - De toollijst op de MCP-pagina komt rechtstreeks uit de server.
+  - **MCP-agent:** `npm run mcp:agent` (eigen testserver, poort 3097) controleert de dekking van de REST-API, staptypes/triggers en een volledige bouw- en monitoringflow via MCP, en schrijft `src/mcp/coverage.json`. Met `-- --check` faalt hij als die verouderd is. Volgorde na elke nieuwe functionaliteit: test-agent, daarna mcp-agent (`.claude/agents/`, zie `CLAUDE.md`).
 - **Agents en infrastructuur:**
   - Externe uitvoeragents met agentgroepen, deploydoelen en failover.
 - **ebMS 2.0 en AS4:**

@@ -1,0 +1,1614 @@
+{
+  "note": "Gegenereerd door scripts/mcp-agent.ts (npm run mcp:agent). Niet met de hand aanpassen.",
+  "tools": [
+    "call_api",
+    "create_datatable",
+    "create_queue",
+    "deploy_process",
+    "design_process",
+    "edit_process",
+    "execute_step",
+    "export_process",
+    "get_audit_log",
+    "get_dashboard",
+    "get_plugin",
+    "get_process",
+    "get_process_health",
+    "get_run",
+    "get_settings",
+    "import_process",
+    "insert_datatable_rows",
+    "list_agent_groups",
+    "list_api_calls",
+    "list_api_operations",
+    "list_approvals",
+    "list_b2b_messages",
+    "list_credential_types",
+    "list_credentials",
+    "list_datatables",
+    "list_incidents",
+    "list_plugins",
+    "list_processes",
+    "list_published_apis",
+    "list_queue_messages",
+    "list_queues",
+    "list_runs",
+    "list_security_findings",
+    "list_step_types",
+    "list_triggers",
+    "list_versions",
+    "publish_message",
+    "query_datatable",
+    "redrive_b2b_message",
+    "redrive_queue",
+    "report_incident",
+    "restore_version",
+    "review_process",
+    "run_plugin_operation",
+    "run_process",
+    "save_credential",
+    "save_process",
+    "set_trigger",
+    "test_credential",
+    "test_process"
+  ],
+  "stepTypes": [
+    "branch",
+    "call",
+    "code",
+    "compression",
+    "connector",
+    "crypto",
+    "csv",
+    "custom",
+    "datatable",
+    "datetime",
+    "delay",
+    "duplicate-check",
+    "email",
+    "end",
+    "enrich",
+    "file",
+    "ftp",
+    "jwt",
+    "list",
+    "mcp-tool",
+    "notify",
+    "queue-get",
+    "queue-publish",
+    "soap",
+    "sql",
+    "stop",
+    "subprocess",
+    "switch",
+    "transform",
+    "validate",
+    "xml",
+    "xslt"
+  ],
+  "triggers": [
+    "api",
+    "as4",
+    "ebms",
+    "error",
+    "file",
+    "ftp",
+    "manual",
+    "poll",
+    "queue",
+    "schedule",
+    "webhook"
+  ],
+  "operations": [
+    {
+      "op": "DELETE /api/v1/admin/users/{id}",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "DELETE /api/v1/agent-groups/{id}",
+      "tags": [
+        "runtime"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/apim/apis/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/apim/apis/{id}/deploy/{env}",
+      "tags": [
+        "apim"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/apim/issuers/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/apim/keys/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/apim/policies/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/credentials/{name}",
+      "tags": [
+        "credentials"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/datatables/{env}/{name}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/datatables/{env}/{name}/rows/{id}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/drafts/{id}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/files/{env}",
+      "tags": [
+        "files"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/integrations/{name}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "DELETE /api/v1/org/api-keys/{id}",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "DELETE /api/v1/org/users/{id}",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "DELETE /api/v1/queues/{env}/{queue}",
+      "tags": [
+        "queues"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "GET /",
+      "tags": [],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "GET /agent/aip-agent.tgz",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "GET /agent/Dockerfile",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "GET /agent/install.sh",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "GET /api/v1/admin/mail",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/admin/overview",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/agent-api/jobs/next",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/agent-groups",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "list_agent_groups"
+      ]
+    },
+    {
+      "op": "GET /api/v1/agent-groups/{id}",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/agents",
+      "tags": [
+        "agents"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/apis",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "list_published_apis"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/apis/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/apis/{id}/spec",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/apis/{id}/versions/{version}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/endpoints",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/issuers",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/keys",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/logs",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/logs/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/apim/policies",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/approvals",
+      "tags": [
+        "approvals"
+      ],
+      "via": [
+        "list_approvals"
+      ]
+    },
+    {
+      "op": "GET /api/v1/approvals/{id}",
+      "tags": [
+        "approvals"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/as4/{env}/connections",
+      "tags": [
+        "as4"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/as4/{env}/messages",
+      "tags": [
+        "as4"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/as4/{env}/messages/{id}",
+      "tags": [
+        "as4"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/audit",
+      "tags": [
+        "audit"
+      ],
+      "via": [
+        "get_audit_log"
+      ]
+    },
+    {
+      "op": "GET /api/v1/auth/me",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/auth/reset/{token}",
+      "tags": [
+        "auth"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/auth/status",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/catalog",
+      "tags": [
+        "catalog"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/credential-types",
+      "tags": [
+        "credentials"
+      ],
+      "via": [
+        "list_credential_types"
+      ]
+    },
+    {
+      "op": "GET /api/v1/credentials",
+      "tags": [
+        "credentials"
+      ],
+      "via": [
+        "list_credentials"
+      ]
+    },
+    {
+      "op": "GET /api/v1/credentials/{name}",
+      "tags": [
+        "credentials"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/dashboard",
+      "tags": [
+        "monitoring"
+      ],
+      "via": [
+        "get_dashboard"
+      ]
+    },
+    {
+      "op": "GET /api/v1/datatables/{env}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "list_datatables"
+      ]
+    },
+    {
+      "op": "GET /api/v1/datatables/{env}/{name}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/datatables/{env}/{name}/rows",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/deployments",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "list_processes"
+      ]
+    },
+    {
+      "op": "GET /api/v1/drafts",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/drafts/{id}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/ebms/{env}/connections",
+      "tags": [
+        "ebms"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/ebms/{env}/messages",
+      "tags": [
+        "ebms"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "GET /api/v1/ebms/{env}/messages/{id}",
+      "tags": [
+        "ebms"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/environments",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/events",
+      "tags": [
+        "events"
+      ],
+      "via": [],
+      "blocked": "eventstream (SSE), niet geschikt voor één aanroep"
+    },
+    {
+      "op": "GET /api/v1/files/{env}",
+      "tags": [
+        "files"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/files/{env}/content",
+      "tags": [
+        "files"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/findings",
+      "tags": [
+        "security"
+      ],
+      "via": [
+        "list_security_findings"
+      ]
+    },
+    {
+      "op": "GET /api/v1/incidents",
+      "tags": [
+        "monitoring"
+      ],
+      "via": [
+        "list_incidents"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "list_processes"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "get_process",
+        "edit_process",
+        "test_process"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}/deployments",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}/export",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "export_process"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}/targets",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}/versions",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "list_versions"
+      ]
+    },
+    {
+      "op": "GET /api/v1/integrations/{name}/versions/{version}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "get_process"
+      ]
+    },
+    {
+      "op": "GET /api/v1/mcp/info",
+      "tags": [
+        "mcp"
+      ],
+      "via": [],
+      "blocked": "MCP-informatie zelf"
+    },
+    {
+      "op": "GET /api/v1/mcp/manifest",
+      "tags": [
+        "mcp"
+      ],
+      "via": [],
+      "blocked": "MCP-informatie zelf"
+    },
+    {
+      "op": "GET /api/v1/oauth/callback",
+      "tags": [
+        "plugins"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/oauth/start",
+      "tags": [
+        "plugins"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/org",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "GET /api/v1/plugins",
+      "tags": [
+        "plugins"
+      ],
+      "via": [
+        "list_plugins"
+      ]
+    },
+    {
+      "op": "GET /api/v1/plugins/{id}",
+      "tags": [
+        "plugins"
+      ],
+      "via": [
+        "get_plugin"
+      ]
+    },
+    {
+      "op": "GET /api/v1/plugins/{id}/logo",
+      "tags": [
+        "plugins"
+      ],
+      "via": [],
+      "blocked": "afbeelding"
+    },
+    {
+      "op": "GET /api/v1/queues",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "list_queues"
+      ]
+    },
+    {
+      "op": "GET /api/v1/queues/{env}/{queue}/messages",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "list_queue_messages"
+      ]
+    },
+    {
+      "op": "GET /api/v1/runs",
+      "tags": [
+        "runs"
+      ],
+      "via": [
+        "list_runs",
+        "get_process_health"
+      ]
+    },
+    {
+      "op": "GET /api/v1/runs/{id}",
+      "tags": [
+        "runs"
+      ],
+      "via": [
+        "get_run"
+      ]
+    },
+    {
+      "op": "GET /api/v1/schemas/{name}",
+      "tags": [
+        "catalog"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/settings",
+      "tags": [
+        "settings"
+      ],
+      "via": [
+        "get_settings"
+      ]
+    },
+    {
+      "op": "GET /api/v1/step-types",
+      "tags": [
+        "catalog"
+      ],
+      "via": [
+        "list_step_types"
+      ]
+    },
+    {
+      "op": "GET /api/v1/targets",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /api/v1/triggers",
+      "tags": [
+        "triggers"
+      ],
+      "via": [
+        "list_triggers"
+      ]
+    },
+    {
+      "op": "GET /api/v1/versions/stats",
+      "tags": [
+        "settings"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "GET /health",
+      "tags": [],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "GET /openapi.json",
+      "tags": [],
+      "via": [
+        "list_published_apis"
+      ]
+    },
+    {
+      "op": "PATCH /api/v1/agent-groups/{id}",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PATCH /api/v1/datatables/{env}/{name}/rows/{id}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/actions",
+      "tags": [
+        "actions"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/admin/orgs",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/admin/users/{id}/reset",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/agent-api/heartbeat",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/agent-api/jobs/{id}/result",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/agent-api/steps/execute",
+      "tags": [
+        "agent-api"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/agent-groups",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/agent-groups/{id}/rotate-key",
+      "tags": [
+        "runtime"
+      ],
+      "via": [],
+      "blocked": "sleutelbeheer alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/agents/builder/design",
+      "tags": [
+        "agents"
+      ],
+      "via": [
+        "design_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/agents/builder/edit",
+      "tags": [
+        "agents"
+      ],
+      "via": [
+        "edit_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/agents/monitoring/analyze",
+      "tags": [
+        "agents"
+      ],
+      "via": [
+        "report_incident"
+      ]
+    },
+    {
+      "op": "POST /api/v1/agents/page/advise",
+      "tags": [
+        "agents"
+      ],
+      "via": [
+        "review_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/apis",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/apis/{id}/deploy",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/apis/{id}/link-new-process",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/apis/{id}/versions/{version}/restore",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/issuers",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/keys",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/apim/policies",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/approvals/{id}/approve",
+      "tags": [
+        "approvals"
+      ],
+      "via": [],
+      "blocked": "goedkeuren doet een mens (AIP_MCP_ALLOW_APPROVALS=true staat het toe)"
+    },
+    {
+      "op": "POST /api/v1/approvals/{id}/reject",
+      "tags": [
+        "approvals"
+      ],
+      "via": [],
+      "blocked": "goedkeuren doet een mens (AIP_MCP_ALLOW_APPROVALS=true staat het toe)"
+    },
+    {
+      "op": "POST /api/v1/as4/{env}/connections/{credential}/{action}",
+      "tags": [
+        "as4"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/as4/{env}/messages/{id}/redrive",
+      "tags": [
+        "as4"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "POST /api/v1/auth/forgot",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/login",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/logout",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/password",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/reset",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/setup",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/auth/signup",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/credentials/{name}/test",
+      "tags": [
+        "credentials"
+      ],
+      "via": [
+        "test_credential"
+      ]
+    },
+    {
+      "op": "POST /api/v1/datatables/{env}",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "create_datatable"
+      ]
+    },
+    {
+      "op": "POST /api/v1/datatables/{env}/{name}/clear",
+      "tags": [
+        "datatables"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "POST /api/v1/datatables/{env}/{name}/query",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "query_datatable"
+      ]
+    },
+    {
+      "op": "POST /api/v1/datatables/{env}/{name}/rows",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "insert_datatable_rows"
+      ]
+    },
+    {
+      "op": "POST /api/v1/drafts/{id}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/ebms/{env}/connections/{credential}/{action}",
+      "tags": [
+        "ebms"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/ebms/{env}/messages/{id}/redrive",
+      "tags": [
+        "ebms"
+      ],
+      "via": [
+        "list_api_calls"
+      ]
+    },
+    {
+      "op": "POST /api/v1/engine/execute-step",
+      "tags": [
+        "runs"
+      ],
+      "via": [
+        "execute_step"
+      ]
+    },
+    {
+      "op": "POST /api/v1/engine/test-run",
+      "tags": [
+        "runs"
+      ],
+      "via": [
+        "test_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/files/{env}",
+      "tags": [
+        "files"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/findings",
+      "tags": [
+        "security"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/incidents",
+      "tags": [
+        "monitoring"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "save_process",
+        "edit_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/{name}/deploy",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "deploy_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/{name}/run",
+      "tags": [
+        "runs"
+      ],
+      "via": [
+        "run_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/{name}/versions/{version}/restore",
+      "tags": [
+        "environments"
+      ],
+      "via": [
+        "restore_version"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/bulk",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/export",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/integrations/import",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "import_process"
+      ]
+    },
+    {
+      "op": "POST /api/v1/mcp/tools/{name}",
+      "tags": [
+        "mcp"
+      ],
+      "via": [],
+      "blocked": "MCP-informatie zelf"
+    },
+    {
+      "op": "POST /api/v1/org/api-keys",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/org/users",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/org/users/{id}/reset",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "POST /api/v1/plugins/{id}/activation",
+      "tags": [
+        "plugins"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/plugins/{id}/execute",
+      "tags": [
+        "plugins"
+      ],
+      "via": [
+        "run_plugin_operation"
+      ]
+    },
+    {
+      "op": "POST /api/v1/plugins/{id}/test",
+      "tags": [
+        "plugins"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/queues/{env}",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "create_queue"
+      ]
+    },
+    {
+      "op": "POST /api/v1/queues/{env}/{queue}/messages",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "publish_message"
+      ]
+    },
+    {
+      "op": "POST /api/v1/queues/{env}/{queue}/purge",
+      "tags": [
+        "queues"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "POST /api/v1/queues/{env}/{queue}/redrive",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "redrive_queue"
+      ]
+    },
+    {
+      "op": "POST /api/v1/queues/{env}/{queue}/take",
+      "tags": [
+        "queues"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "POST /api/v1/triggers/{env}/{name}/{action}",
+      "tags": [
+        "triggers"
+      ],
+      "via": [
+        "set_trigger"
+      ]
+    },
+    {
+      "op": "POST /api/v1/versions/cleanup",
+      "tags": [
+        "settings"
+      ],
+      "via": [],
+      "blocked": "verwijderen/leegmaken (AIP_MCP_ALLOW_DELETE=true staat het toe)"
+    },
+    {
+      "op": "POST /ebms/{env}/{credential}",
+      "tags": [
+        "ebms"
+      ],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "POST /o/{org}/ebms/{env}/{credential}",
+      "tags": [
+        "ebms"
+      ],
+      "via": [],
+      "blocked": "geen platform-API (publieke endpoints, GUI of agent-downloads)"
+    },
+    {
+      "op": "PUT /api/v1/admin/orgs/{id}",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/admin/settings",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/admin/users/{id}",
+      "tags": [
+        "admin"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/apim/apis/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/apim/issuers/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/apim/keys/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/apim/policies/{id}",
+      "tags": [
+        "apim"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/auth/me",
+      "tags": [
+        "auth"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/credentials/{name}",
+      "tags": [
+        "credentials"
+      ],
+      "via": [
+        "save_credential"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/datatables/{env}/{name}/columns",
+      "tags": [
+        "datatables"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/drafts/{id}",
+      "tags": [
+        "integrations"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/integrations/{name}/targets/{env}",
+      "tags": [
+        "runtime"
+      ],
+      "via": [
+        "call_api"
+      ]
+    },
+    {
+      "op": "PUT /api/v1/org",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/org/users/{id}",
+      "tags": [
+        "org"
+      ],
+      "via": [],
+      "blocked": "accounts, beheer en aanmelden alleen via de GUI"
+    },
+    {
+      "op": "PUT /api/v1/settings",
+      "tags": [
+        "settings"
+      ],
+      "via": [
+        "call_api"
+      ]
+    }
+  ]
+}

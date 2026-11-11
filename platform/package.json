@@ -19,7 +19,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:auth": "tsx scripts/auth-test.ts",
     "test:apim": "tsx scripts/apim-test.ts",
-    "test:scenarios": "tsx scripts/scenario-test.ts"
+    "test:scenarios": "tsx scripts/scenario-test.ts",
+    "mcp:agent": "tsx scripts/mcp-agent.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.5",

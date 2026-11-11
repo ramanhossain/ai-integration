@@ -26,7 +26,7 @@ import { broker } from "./connectors/queue";
 import { datatables } from "./connectors/datatables";
 import { triggers } from "./triggers/manager";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createMcpServer } from "./mcp/server";
+import { createMcpServer, mcpToolNames } from "./mcp/server";
 import { accounts } from "./auth/accounts";
 import { mailer } from "./auth/mailer";
 import { registerAuth, AUTH_ENABLED } from "./auth/guard";
@@ -146,6 +146,7 @@ export async function buildServer() {
   // ---------- MCP-server (Streamable HTTP, stateless) ----------
   const mcpToken = process.env.AIP_MCP_TOKEN;
   const allowApprovals = process.env.AIP_MCP_ALLOW_APPROVALS === "true";
+  const allowDelete = process.env.AIP_MCP_ALLOW_DELETE === "true";
   app.get("/api/v1/mcp/info", { schema: { tags: ["mcp"] } }, async (req) => {
     const host = process.env.AIP_PUBLIC_URL || `${req.protocol}://${req.headers.host}`;
     const root = join(__dirname, "..");
@@ -154,7 +155,7 @@ export async function buildServer() {
       tokenRequired: Boolean(mcpToken),
       allowApprovals,
       stdio: { command: join(root, "node_modules", ".bin", "tsx"), args: [join(root, "src", "mcp", "stdio.ts")], env: { AIP_URL: host, ...(AUTH_ENABLED ? { AIP_API_KEY: "<API-sleutel van je organisatie>" } : {}) } },
-      tools: ["list_processes", "get_process", "save_process", "edit_process", "design_process", "test_process", "run_process", "deploy_process", "list_runs", "get_run", "get_dashboard", "report_incident", "list_approvals", "get_settings", ...(allowApprovals ? ["decide_approval"] : []), "list_step_types", "list_triggers", "list_credentials", "list_queues", "publish_message", "create_queue", "list_datatables", "query_datatable", "insert_datatable_rows", "create_datatable"],
+      tools: mcpToolNames({ baseUrl: "", allowApprovals, allowDelete, user: "" }),
       resources: ["aip://schema/integration", "aip://processes/{name}"],
       prompts: ["integratie-bouwen"]
     };
@@ -175,7 +176,7 @@ export async function buildServer() {
       const fwd: Record<string, string> = {};
       if (req.headers.authorization) fwd.authorization = String(req.headers.authorization);
       if (req.headers.cookie) fwd.cookie = String(req.headers.cookie);
-      const server = createMcpServer({ baseUrl: `http://127.0.0.1:${config.port}`, allowApprovals, user: String(req.headers["x-aip-user"] || "mcp-http"), headers: fwd });
+      const server = createMcpServer({ baseUrl: `http://127.0.0.1:${config.port}`, allowApprovals, allowDelete, user: String(req.headers["x-aip-user"] || "mcp-http"), headers: fwd });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
       reply.hijack();
       reply.raw.on("close", () => { void transport.close(); void server.close(); });

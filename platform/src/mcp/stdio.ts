@@ -9,6 +9,7 @@ async function main() {
   const server = createMcpServer({
     baseUrl,
     allowApprovals: process.env.AIP_MCP_ALLOW_APPROVALS === "true",
+    allowDelete: process.env.AIP_MCP_ALLOW_DELETE === "true",
     user: process.env.AIP_MCP_USER ?? "mcp-stdio",
     // Met accounts aan: een API-sleutel van de organisatie (Beheer → Gebruikers → API-sleutels).
     headers: process.env.AIP_API_KEY ? { authorization: `Bearer ${process.env.AIP_API_KEY}` } : undefined
