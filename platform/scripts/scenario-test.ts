@@ -51,7 +51,7 @@ async function main() {
   await cred("erp", { type: "http-bearer", values: { dev: { token: "erp-token" } } });
   await cred("smtp-lokaal", { type: "smtp", values: { dev: { host: "127.0.0.1", port: "2525", secure: "false", from: "integraties@aip.test" } } });
   await cred("pg-crm", { type: "postgres", values: { dev: { connectionString: "postgres://postgres@127.0.0.1:5433/postgres" } } });
-  await cred("pg-plugin", { type: "plugin", plugin: "postgres", values: { dev: { host: "127.0.0.1", port: "5434", user: "postgres", password: "x", database: "postgres" } } });
+  await cred("pg-plugin", { type: "plugin", plugin: "postgres", values: { dev: { host: "127.0.0.1", port: "5434", user: "postgres", password: "welkom", database: "postgres" } } });
   await cred("mongo", { type: "plugin", plugin: "mongodb", values: { dev: { connectionString: "mongodb://127.0.0.1:27018", database: `aip_${RUN}` } } });
   await cred("mqtt-broker", { type: "plugin", plugin: "mqtt", values: { dev: { url: "mqtt://127.0.0.1:1884", clientId: `aip-${RUN}` } } });
 
@@ -82,9 +82,9 @@ async function main() {
   const root = mkdtempSync(join(tmpdir(), "aip-scn-ftp-"));
   mkdirSync(join(root, "export"));
   const ftp = new FtpSrv({ url: "ftp://127.0.0.1:2122", pasv_url: "127.0.0.1", pasv_min: 30300, pasv_max: 30400, anonymous: false, log: { trace() {}, debug() {}, info() {}, warn() {}, error() {}, child() { return this; } } });
-  ftp.on("login", ({ username, password }: any, resolve: any, reject: any) => (username === "aip" && password === "geheim" ? resolve({ root }) : reject(new Error("login"))));
+  ftp.on("login", ({ username, password }: any, resolve: any, reject: any) => (username === "demo@demo.nl" && password === "welkom" ? resolve({ root }) : reject(new Error("login"))));
   await ftp.listen();
-  await cred("ftp-partner", { type: "ftp", values: { dev: { host: "127.0.0.1", port: "2122", user: "aip", password: "geheim" } } });
+  await cred("ftp-partner", { type: "ftp", values: { dev: { host: "127.0.0.1", port: "2122", user: "demo@demo.nl", password: "welkom" } } });
   try {
     const r2 = await testRun(linear("KlantenExport", { type: "manual" }, [
       { id: "lees", type: "sql", config: { credential: "pg-crm", query: "select id, naam, plaats from klanten where plaats <> $1 order by id", params: ["{{uitsluiten}}"], target: "klanten" } },

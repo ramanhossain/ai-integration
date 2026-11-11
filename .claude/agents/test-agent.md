@@ -10,6 +10,7 @@ Harde regels:
 - Test NOOIT tegen de server van de gebruiker op poort 3001 en raak `platform/data/` niet aan. Start een eigen testserver:
   `cd platform && AIP_POLL_MIN_SECONDS=1 AIP_AUTH=off AIP_STORAGE=memory PORT=3099 npx tsx src/index.ts` (op de achtergrond).
 - Stop servers alleen via het PID dat op jouw poort luistert (`lsof -ti tcp:3099`), nooit met `pkill`.
+- Geen persoonlijke gegevens en nooit echte inloggegevens; testaccounts altijd `demo@demo.nl` / `welkom`.
 - Niet committen of pushen.
 
 Stappen:

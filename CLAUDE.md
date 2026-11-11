@@ -10,4 +10,5 @@ Projectkennis (architectuur, conventies, tests, open punten): zie `PROJECTKENNIS
 - Nooit testen tegen de server van de gebruiker op poort 3001; nooit gebruikersdata verwijderen.
 - Communicatie, GUI-teksten en commits in het Nederlands; iconen i.p.v. tekstknoppen.
 - Geen namen van andere workflowproducten in het platform.
+- Geen persoonlijke gegevens (namen, e-mailadressen, domeinen van de gebruiker of klanten) en nooit echte inloggegevens in code, tests of documentatie. Testaccounts en -wachtwoorden zijn altijd `demo@demo.nl` / `welkom` (extra accounts: `demo2@demo.nl`, …). Voor accounttests: `AIP_STORAGE=memory AIP_DEMO_PASSWORDS=true`.
 - Alleen committen/pushen als daarom gevraagd wordt; tokens nooit tonen of opslaan.

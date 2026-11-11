@@ -10,6 +10,7 @@ Harde regels:
 - Nooit tegen poort 3001 testen; `npm run mcp:agent` start zelf een testserver in het geheugen (poort 3097).
 - Geen accounts/beheer, sleutels, goedkeuren of verwijderen als eigen tool toevoegen; dat regelt `src/mcp/policy.ts` (goedkeuren alleen met `AIP_MCP_ALLOW_APPROVALS=true`, verwijderen alleen met `AIP_MCP_ALLOW_DELETE=true`).
 - Geen namen van andere workflowproducten in teksten. Tool-titels en -beschrijvingen in het Nederlands.
+- Geen persoonlijke gegevens en nooit echte inloggegevens; testaccounts altijd `demo@demo.nl` / `welkom`.
 - Niet committen of pushen.
 
 Stappen:

@@ -88,6 +88,7 @@ Licentie: MIT (publieke repository).
   - Bij het opstarten laadt `hydrateOrg` elke organisatie in (zie `boot.ts`).
 - **Authenticatie (`src/auth/guard.ts`):**
   - Sessies via een HttpOnly-cookie, wachtwoorden met scrypt, API-sleutels `aip_…`.
+  - Testen en demo's gebruiken altijd `demo@demo.nl` / `welkom`. Dat korte wachtwoord mag alleen met `AIP_DEMO_PASSWORDS=true` én `AIP_STORAGE=memory`; anders geldt minimaal 10 tekens met letters en cijfers.
   - Velden met een identiteit in de body (`approver`, `proposedBy`, `owner`, …) worden overschreven met de ingelogde gebruiker.
   - `AIP_AUTH=off` zet authenticatie uit; alleen voor ontwikkeling en tests, niet toegestaan als `NODE_ENV=production`.
 - **Geheimen:**

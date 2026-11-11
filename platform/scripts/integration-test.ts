@@ -234,10 +234,10 @@ async function main() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const FtpSrv = require("ftp-srv");
   const ftp = new FtpSrv({ url: "ftp://127.0.0.1:2121", pasv_url: "127.0.0.1", pasv_min: 30100, pasv_max: 30200, anonymous: false, greeting: "aip-test", log: { trace() {}, debug() {}, info() {}, warn() {}, error() {}, child() { return this; } } });
-  ftp.on("login", ({ username, password }: any, resolve: any, reject: any) => (username === "aip" && password === "geheim" ? resolve({ root }) : reject(new Error("login"))));
+  ftp.on("login", ({ username, password }: any, resolve: any, reject: any) => (username === "demo@demo.nl" && password === "welkom" ? resolve({ root }) : reject(new Error("login"))));
   await ftp.listen();
   try {
-    await api("PUT", "/api/v1/credentials/partner-ftp", { type: "ftp", values: { dev: { host: "127.0.0.1", port: "2121", user: "aip", password: "geheim" } } });
+    await api("PUT", "/api/v1/credentials/partner-ftp", { type: "ftp", values: { dev: { host: "127.0.0.1", port: "2121", user: "demo@demo.nl", password: "welkom" } } });
     const t = (await api("POST", "/api/v1/credentials/partner-ftp/test", { env: "dev" })).data;
     assert(t.ok, "verbindingstest FTP", t);
     const ftpRun = await testRun(linear("FtpTest", { type: "manual" }, [

@@ -30,7 +30,10 @@ export type PublicUser = Omit<User, "passwordHash"> & { hasPassword: boolean };
 
 export const FULL_ACCESS: EnvAccess = { dev: "edit", test: "edit", acc: "edit", prod: "edit" };
 const SESSION_DAYS = 14;
-export const PASSWORD_MIN = 10;
+// Demo-modus (alleen met opslag in het geheugen, nooit met blijvende data): eenvoudig
+// demowachtwoord toegestaan, zodat tests en demo's met demo@demo.nl / welkom werken.
+const DEMO_PASSWORDS = process.env.AIP_DEMO_PASSWORDS === "true" && process.env.AIP_STORAGE === "memory";
+export const PASSWORD_MIN = DEMO_PASSWORDS ? 6 : 10;
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const token = (prefix = "") => prefix + randomBytes(32).toString("base64url");
@@ -55,7 +58,7 @@ const DUMMY_HASH = `scrypt$${randomBytes(16).toString("base64")}$${randomBytes(6
 export function checkPassword(pw: string): string | null {
   if (typeof pw !== "string" || pw.length < PASSWORD_MIN) return `Het wachtwoord moet minstens ${PASSWORD_MIN} tekens hebben`;
   if (pw.length > 200) return "Het wachtwoord is te lang";
-  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return "Gebruik letters én cijfers in het wachtwoord";
+  if (!DEMO_PASSWORDS && (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw))) return "Gebruik letters én cijfers in het wachtwoord";
   return null;
 }
 export function normAccess(a: Partial<Record<string, string>> | undefined, fallback: EnvAccess): EnvAccess {

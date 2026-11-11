@@ -54,10 +54,10 @@ async function main() {
   ok(last().url === "/chan/a%20b%2Fc/msg", "padparameter gecodeerd", last().url);
   ok(JSON.parse(last().body).fields.a === "x" && JSON.parse(last().body).text === "hoi", "body-parameters met punt worden genest", last().body);
 
-  cred("basic", "t", { user: "jan@x.nl/token", password: "geheim" });
+  cred("basic", "t", { user: "demo@demo.nl/token", password: "welkom" });
   await executePlugin({ plugin: P({ auth: { type: "basic" }, operations: [{ id: "o", resource: "r", label: "l", method: "POST", path: "/issue", params: [{ name: "fields.description", label: "d", format: "adf" }, { name: "labels", label: "l", format: "list" }] }] }), operation: "o", credential: "basic", params: { "fields.description": "Regel 1\n\nRegel 2", labels: "a, b" }, env: "dev" });
   const jb = JSON.parse(last().body);
-  ok(last().headers.authorization === `Basic ${Buffer.from("jan@x.nl/token:geheim").toString("base64")}`, "basic auth");
+  ok(last().headers.authorization === `Basic ${Buffer.from("demo@demo.nl/token:welkom").toString("base64")}`, "basic auth");
   ok(jb.fields.description.type === "doc" && jb.fields.description.content.length === 2 && jb.fields.description.content[1].content[0].text === "Regel 2", "tekst naar Atlassian Document Format", jb.fields.description);
   ok(JSON.stringify(jb.labels) === '["a","b"]', "komma-lijst naar array", jb.labels);
 
@@ -149,10 +149,10 @@ async function main() {
 
   // Drivers: laden en verbinden (naar een gesloten poort) moet een nette verbindingsfout geven
   const refused: Record<string, Record<string, string>> = {
-    mysql: { host: "127.0.0.1", port: "1", user: "u", password: "p", database: "d" }, "microsoft-sql": { host: "127.0.0.1", port: "1", user: "u", password: "p", database: "d" },
-    "oracle-sql": { host: "127.0.0.1", port: "1", user: "u", password: "p", database: "XE" }, timescaledb: { host: "127.0.0.1", port: "1", user: "u", password: "p", database: "d" },
+    mysql: { host: "127.0.0.1", port: "1", user: "demo@demo.nl", password: "welkom", database: "d" }, "microsoft-sql": { host: "127.0.0.1", port: "1", user: "demo@demo.nl", password: "welkom", database: "d" },
+    "oracle-sql": { host: "127.0.0.1", port: "1", user: "demo@demo.nl", password: "welkom", database: "XE" }, timescaledb: { host: "127.0.0.1", port: "1", user: "demo@demo.nl", password: "welkom", database: "d" },
     mongodb: { connectionString: "mongodb://127.0.0.1:1/?directConnection=true" }, redis: { url: "redis://127.0.0.1:1" }, kafka: { brokers: "127.0.0.1:1" }, mqtt: { url: "mqtt://127.0.0.1:1" },
-    rabbitmq: { url: "amqp://127.0.0.1:1" }, amqp: { host: "127.0.0.1", port: "1" }, ldap: { url: "ldap://127.0.0.1:1" }, imap: { host: "127.0.0.1", port: "1", ssl: "nee", user: "u", password: "p" }, ssh: { host: "127.0.0.1", port: "1", user: "u", password: "p" }
+    rabbitmq: { url: "amqp://127.0.0.1:1" }, amqp: { host: "127.0.0.1", port: "1" }, ldap: { url: "ldap://127.0.0.1:1" }, imap: { host: "127.0.0.1", port: "1", ssl: "nee", user: "demo@demo.nl", password: "welkom" }, ssh: { host: "127.0.0.1", port: "1", user: "demo@demo.nl", password: "welkom" }
   };
   for (const [id, values] of Object.entries(refused)) {
     const def = plugins.get(id)!;
